@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type Application struct {
@@ -41,7 +42,13 @@ func (app *Application) Start() error {
 
 func (app *Application) Setup() error {
 	// setup routes
-	app.echo = echo.New()
+	e := echo.New()
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.AddTrailingSlash())
+	e.Use(middleware.RequestID())
+
+	app.echo = e
 
 	return nil
 }
