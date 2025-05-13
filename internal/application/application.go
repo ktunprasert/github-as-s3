@@ -2,22 +2,29 @@ package application
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
 type Application struct {
-	token   string
-	echo    *echo.Echo
-	port    string
-	address string
+	Token   string
+	Echo    *echo.Echo
+	Port    string
+	Address string
+	Owner   string
 }
 
 func NewApplication() *Application {
+	_ = godotenv.Load()
+
 	return &Application{
-		port:    "8888",
-		address: "0.0.0.0",
+		Port:    getEnv("GHS3_PORT", "8080"),
+		Address: getEnv("GHS3_ADDRESS", "0.0.0.0"),
+		Token:   getEnv("GITHUB_TOKEN", ""),
+		Owner:   getEnv("GITHUB_OWNER", ""),
 	}
 }
 
@@ -37,7 +44,7 @@ func (app *Application) Start() error {
 
 	// should be a goroutine?
 
-	return app.echo.Start(fmt.Sprintf("%s:%s", app.address, app.port))
+	return app.Echo.Start(fmt.Sprintf("%s:%s", app.Address, app.Port))
 }
 
 func (app *Application) Setup() error {
@@ -48,7 +55,15 @@ func (app *Application) Setup() error {
 	e.Use(middleware.AddTrailingSlash())
 	e.Use(middleware.RequestID())
 
-	app.echo = e
+	app.Echo = e
 
 	return nil
+}
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return fallback
 }
