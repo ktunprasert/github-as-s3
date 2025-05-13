@@ -1,11 +1,23 @@
 package application
 
+import (
+	"fmt"
+
+	"github.com/labstack/echo/v4"
+)
+
 type Application struct {
-	token string
+	token   string
+	echo    *echo.Echo
+	port    string
+	address string
 }
 
 func NewApplication() *Application {
-	return &Application{}
+	return &Application{
+		port:    "8888",
+		address: "0.0.0.0",
+	}
 }
 
 func NewApplicationWithOpts(opts ...applicationOpts) *Application {
@@ -17,8 +29,19 @@ func NewApplicationWithOpts(opts ...applicationOpts) *Application {
 	return app
 }
 
-func (*Application) Start() error {
-	// should be a goroutine
+func (app *Application) Start() error {
+	if err := app.Setup(); err != nil {
+		return err
+	}
+
+	// should be a goroutine?
+
+	return app.echo.Start(fmt.Sprintf("%s:%s", app.address, app.port))
+}
+
+func (app *Application) Setup() error {
+	// setup routes
+	app.echo = echo.New()
 
 	return nil
 }

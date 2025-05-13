@@ -17,3 +17,15 @@ func WithEnvToken() applicationOpts {
 		a.token = token
 	}
 }
+
+func WithPort(port string) applicationOpts {
+	return func(a *Application) {
+		a.port = port
+	}
+}
+
+func WithAddress(address string) applicationOpts {
+	return func(a *Application) {
+		a.address = address
+	}
+}
