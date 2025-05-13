@@ -1,6 +1,10 @@
 package main
 
-import "github-as-s3/internal/application"
+import (
+	"github-as-s3/internal/application"
+	"log"
+	"net/http"
+)
 
 func main() {
 
@@ -8,7 +12,7 @@ func main() {
 		application.WithToken("my_token"),
 	)
 
-	if err := app.Start(); err != nil {
-		panic(err)
+	if err := app.Start(); err != http.ErrServerClosed {
+		log.Fatal(err)
 	}
 }
