@@ -61,6 +61,9 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
 
 	repo, _, err := gh.client.Repositories.Create(ctx, "", &github.Repository{
 		Name: repoName,
+		Owner: &github.User{
+			Name: github.Ptr(gh.owner),
+		},
 	})
 
 	if err != nil {
