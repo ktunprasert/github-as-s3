@@ -106,7 +106,26 @@ func (gh *GitHub) DeleteRepo(ctx context.Context, name string) error {
 	return nil
 }
 
-// func (gh *GitHub) ListRepos()
+func (gh *GitHub) ListRepos(ctx context.Context, page int) ([]*github.Repository, int, bool, error) {
+	if page < 1 {
+		return nil, 0, false, fmt.Errorf("page must be greater than 0")
+	}
+
+	search := fmt.Sprintf("user:%s ghs3- in:name", gh.owner)
+	repos, _, err := gh.client.Search.Repositories(ctx, search, &github.SearchOptions{
+		Sort:  "updated",
+		Order: "desc",
+		ListOptions: github.ListOptions{
+			Page:    page,
+			PerPage: 25,
+		},
+	})
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	return repos.Repositories, page + 1, repos.GetIncompleteResults(), nil
+}
 
 func formatRepoName(name string) *string {
 	s := fmt.Sprintf("ghs3-%s", name)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github-as-s3/internal/application"
 	"github-as-s3/internal/github"
 	"log"
@@ -20,6 +21,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to create repo: %v", err)
 		}
+	}
+
+	{
+		repos, nextPage, haveMore, err := gh.ListRepos(ctx, 1)
+		if err != nil {
+			log.Fatalf("failed to list repos: %v", err)
+		}
+
+		fmt.Printf("repos: %v, nextPage: %d, haveMore: %v\n", repos, nextPage, haveMore)
 	}
 
 	{
