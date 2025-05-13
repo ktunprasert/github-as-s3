@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/go-github/v72/github"
 )
@@ -13,16 +14,20 @@ var requiredPermissions = []string{"repo", "delete_repo"}
 
 type GitHub struct {
 	client *github.Client
+	owner  string
 }
 
-func NewGitHub(token string) *GitHub {
-	client := github.NewClient(nil)
+func NewGitHub(token, owner string) *GitHub {
+	client := github.NewClient(nil).WithAuthToken(token)
+
 	return &GitHub{
 		client: client,
+		owner:  owner,
 	}
 }
 
-func (gh *GitHub) CheckPermissions(ctx context.Context, token string) (bool, error) {
+// nice to have
+func (gh *GitHub) CheckPermissions(ctx context.Context) (bool, error) {
 	var resp map[string]any
 
 	req, err := http.NewRequest(http.MethodGet, gh.client.BaseURL.String(), nil)
@@ -30,7 +35,7 @@ func (gh *GitHub) CheckPermissions(ctx context.Context, token string) (bool, err
 		return false, fmt.Errorf("create request: %w", err)
 	}
 
-	ghResp, err := gh.client.WithAuthToken(token).Do(ctx, req, &resp)
+	ghResp, err := gh.client.Do(ctx, req, &resp)
 	if err != nil {
 		return false, fmt.Errorf("check permissions: %w", err)
 	}
@@ -49,6 +54,51 @@ func (gh *GitHub) CheckPermissions(ctx context.Context, token string) (bool, err
 	}
 
 	return false, fmt.Errorf("missing required permissions: %v", missing)
+}
+
+func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
+	repoName := formatRepoName(name)
+
+	repo, _, err := gh.client.Repositories.Create(ctx, "", &github.Repository{
+		Name: repoName,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if repo.CreatedAt == nil {
+		tries := 0
+		multiplier := 1
+		var createdAt *github.Timestamp
+		for createdAt == nil {
+			if tries > 3 {
+				return fmt.Errorf("failed to check whether repo is created")
+			}
+
+			repo, _, err := gh.client.Repositories.Get(ctx, gh.owner, *repoName)
+			if err != nil {
+				return err
+			}
+
+			createdAt = repo.CreatedAt
+
+			time.Sleep(time.Duration(multiplier) * time.Second)
+
+			multiplier *= 2
+		}
+
+	}
+	return nil
+}
+
+// func (gh *GitHub) DeleteRepo()
+// func (gh *GitHub) ListRepos()
+
+func formatRepoName(name string) *string {
+	s := fmt.Sprintf("ghs3-%s", name)
+
+	return &s
 }
 
 func checkMissingPermissions(permissions []string) []string {
