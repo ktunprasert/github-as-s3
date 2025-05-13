@@ -21,7 +21,7 @@ func NewApplication() *Application {
 }
 
 func NewApplicationWithOpts(opts ...applicationOpts) *Application {
-	app := &Application{}
+	app := NewApplication()
 	for _, opt := range opts {
 		opt(app)
 	}
