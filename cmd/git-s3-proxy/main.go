@@ -1,7 +1,14 @@
 package main
 
-import "fmt"
+import "github-as-s3/internal/application"
 
 func main() {
-	fmt.Println("Git-S3 Proxy Starting...")
+
+	app := application.NewApplicationWithOpts(
+		application.WithToken("my_token"),
+	)
+
+	if err := app.Start(); err != nil {
+		panic(err)
+	}
 }
