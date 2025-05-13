@@ -92,7 +92,17 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
 	return nil
 }
 
-// func (gh *GitHub) DeleteRepo()
+func (gh *GitHub) DeleteRepo(ctx context.Context, name string) error {
+	repoName := formatRepoName(name)
+
+	_, err := gh.client.Repositories.Delete(ctx, gh.owner, *repoName)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // func (gh *GitHub) ListRepos()
 
 func formatRepoName(name string) *string {
