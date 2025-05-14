@@ -2,10 +2,16 @@ package git
 
 import (
 	"context"
+	"github-as-s3/internal/consts"
 	"github-as-s3/internal/util"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage"
 	"github.com/go-git/go-git/v5/storage/memory"
@@ -27,25 +33,63 @@ func NewGit(token, owner string) *Git {
 
 // Used when we create a new repo via GitHub but
 // it's empty
-// func (g *Git) InitRepo(name string) error {
-// 	repo, err := git.Init(g.storage, nil)
-// 	if err != nil {
-// 		return err
-// 	}
+func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error) {
+	path, err := os.MkdirTemp("", "ghs3-"+name)
+	if err != nil {
+		return nil, err
+	}
 
-// 	// create a new remote
-// 	remote, err := repo.CreateRemote(&config.RemoteConfig{
-// 		Name: "origin",
-// 		URLs: []string{
-// 			util.GithubURL(g.owner, name),
-// 		},
-// 		Mirror: false,
-// 	})
+	repo, err := git.PlainInit(path, true)
+	if err != nil {
+		return nil, err
+	}
 
-// 	repo.Storer.Add
+	remote, err := repo.CreateRemote(&config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{util.GithubURL(g.owner, name)},
+	})
+	if err != nil {
+		return nil, err
+	}
 
-// 	// remote.Push
-// }
+	//create some files then commit and push
+	err = os.WriteFile(filepath.Join(path, ".ghs3"), []byte("Managed by ghs3"), 0644)
+	if err != nil {
+		return nil, err
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = wt.Add(".ghs3")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = wt.Commit("batman", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "GHS3",
+			Email: "ktunprasert@outlook.com",
+			When:  time.Now(),
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = remote.PushContext(ctx, &git.PushOptions{
+		RemoteName: consts.Master,
+		RemoteURL:  util.GithubURL(g.owner, name),
+		Auth:       g.auth(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return repo, nil
+}
 
 func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	path, err := os.MkdirTemp("", "ghs3-"+name)
@@ -55,8 +99,8 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 
 	repo, err := git.PlainCloneContext(ctx, path, true, &git.CloneOptions{
 		URL:           util.GithubURL(g.owner, name),
-		Auth:          &http.BasicAuth{Username: "non-empty-string", Password: g.token},
-		ReferenceName: "master",
+		Auth:          g.auth(),
+		ReferenceName: consts.Master,
 		SingleBranch:  true,
 	})
 	// repo, err := git.Clone(g.storage, nil, &git.CloneOptions{
@@ -67,6 +111,10 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	}
 
 	return repo, nil
+}
+
+func (g *Git) auth() transport.AuthMethod {
+	return &http.BasicAuth{Username: "non-empty-string", Password: g.token}
 }
 
 // func github
