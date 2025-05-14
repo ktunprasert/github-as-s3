@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"github-as-s3/internal/consts"
 	"github-as-s3/internal/util"
 	"os"
@@ -52,7 +53,6 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	//create some files then commit and push
 	err = os.WriteFile(filepath.Join(path, ".ghs3"), []byte("Managed by ghs3"), 0644)
 	if err != nil {
 		return nil, err
@@ -103,11 +103,18 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 		ReferenceName: consts.Master,
 		SingleBranch:  true,
 	})
-	// repo, err := git.Clone(g.storage, nil, &git.CloneOptions{
-	// })
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, transport.ErrEmptyRemoteRepository) {
+			repo, err = g.InitRepo(ctx, name)
+			if err != nil {
+				return nil, err
+			}
+
+		} else {
+			return nil, err
+		}
+
 	}
 
 	return repo, nil
@@ -116,5 +123,3 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 func (g *Git) auth() transport.AuthMethod {
 	return &http.BasicAuth{Username: "non-empty-string", Password: g.token}
 }
-
-// func github
