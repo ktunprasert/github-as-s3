@@ -70,6 +70,9 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
 		return err
 	}
 
+	// TODO: figure out how to trigger check for this
+	// dont want to list/search for it
+	// createdAt==nil is NOT the condition
 	if repo.CreatedAt == nil {
 		tries := 0
 		multiplier := 1
