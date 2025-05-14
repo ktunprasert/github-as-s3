@@ -6,9 +6,13 @@ import (
 	"github-as-s3/internal/application"
 	"github-as-s3/internal/github"
 	"log"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
 	ctx := context.Background()
 
@@ -19,7 +23,7 @@ func main() {
 	{
 		err := gh.CreateRepo(ctx, "test-repo")
 		if err != nil {
-			log.Fatalf("failed to create repo: %v", err)
+			log.Err(err).Str("repo", "test-repo").Msg("failed to create repo")
 		}
 	}
 
