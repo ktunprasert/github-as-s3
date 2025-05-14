@@ -6,11 +6,13 @@ import (
 	"github-as-s3/internal/application"
 	"github-as-s3/internal/github"
 	"log"
+	"github.com/joho/godotenv"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	_ = godotenv.Load()
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -18,8 +17,6 @@ type Application struct {
 }
 
 func NewApplication() *Application {
-	_ = godotenv.Load()
-
 	return &Application{
 		Port:    getEnv("GHS3_PORT", "8080"),
 		Address: getEnv("GHS3_ADDRESS", "0.0.0.0"),
