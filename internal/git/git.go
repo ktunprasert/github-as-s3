@@ -37,20 +37,20 @@ func NewGit(token, owner string) *Git {
 // Used when we create a new repo via GitHub but
 // it's empty
 func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error) {
-	log.Debug().Str("repo_name", name).Msg("InitRepo called")
+	slog := util.LogCtx(ctx, "git.InitRepo").With().Str("component", "git.InitRepo").Logger()
+
+	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
 	path, err := os.MkdirTemp("", "ghs3-"+name)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug().Str("path", path).Msg("Temp directory created for InitRepo")
-	log.Debug().Str("path", path).Msg("Calling git.PlainInit")
+	slog.Debug().Str("path", path).Msg("Temp directory created for InitRepo")
 	repo, err := git.PlainInit(path, false)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Debug().Str("repo_name", name).Msg("Calling repo.CreateRemote")
 	remote, err := repo.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
 		URLs: []string{util.GithubURL(g.owner, name)},
@@ -74,7 +74,6 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	log.Debug().Msg("Calling wt.Commit")
 	_, err = wt.Commit("batman", &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "GHS3",
@@ -86,7 +85,6 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	log.Debug().Str("repo_name", name).Msg("Calling remote.PushContext")
 	err = remote.PushContext(ctx, &git.PushOptions{
 		RemoteName: consts.Origin,
 		RemoteURL:  util.GithubURL(g.owner, name),
@@ -96,19 +94,21 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	log.Debug().Str("repo_name", name).Msg("InitRepo successful")
+	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.OK")
 	return repo, nil
 }
 
 func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
-	log.Debug().Str("repo_name", name).Msg("Clone called")
+	slog := util.LogCtx(ctx, "git.Clone").With().Str("component", "git.Clone").Logger()
+	slog.Debug().Str("repo_name", name).Msg("git.Clone.Start")
+
 	path, err := os.MkdirTemp("", "ghs3-"+name)
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Str("path", path).Msg("Temp directory created for Clone")
+	// log.Ctx(ctx).With
+	slog.Debug().Str("path", path).Msg("Temp directory created for Clone")
 
-	log.Debug().Str("repo_name", name).Str("url", util.GithubURL(g.owner, name)).Msg("Calling git.PlainCloneContext")
 	repo, err := git.PlainCloneContext(ctx, path, true, &git.CloneOptions{
 		URL:           util.GithubURL(g.owner, name),
 		Auth:          g.auth(),
@@ -118,7 +118,7 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 
 	if err != nil {
 		if errors.Is(err, transport.ErrEmptyRemoteRepository) {
-			log.Debug().Str("repo_name", name).Msg("Remote repository is empty, calling InitRepo")
+			slog.Debug().Str("repo_name", name).Msg("Remote repository is empty, calling InitRepo")
 			repo, err = g.InitRepo(ctx, name)
 			if err != nil {
 				return nil, err
@@ -130,11 +130,10 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 
 	}
 
-	log.Debug().Str("repo_name", name).Msg("Clone successful")
+	slog.Debug().Str("repo_name", name).Msg("git.Clone.OK")
 	return repo, nil
 }
 
 func (g *Git) auth() transport.AuthMethod {
-	log.Debug().Msg("auth called")
 	return &http.BasicAuth{Username: "non-empty-string", Password: g.token}
 }
