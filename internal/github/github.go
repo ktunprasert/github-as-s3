@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"github-as-s3/internal/util"
 	"net/http"
 	"strings"
 	"time"
@@ -57,7 +58,7 @@ func (gh *GitHub) CheckPermissions(ctx context.Context) (bool, error) {
 }
 
 func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
-	repoName := formatRepoName(name)
+	repoName := util.RepoName(name)
 
 	repo, _, err := gh.client.Repositories.Create(ctx, "", &github.Repository{
 		Name: repoName,
@@ -99,7 +100,7 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
 }
 
 func (gh *GitHub) DeleteRepo(ctx context.Context, name string) error {
-	repoName := formatRepoName(name)
+	repoName := util.RepoName(name)
 
 	_, err := gh.client.Repositories.Delete(ctx, gh.owner, *repoName)
 	if err != nil {
@@ -128,12 +129,6 @@ func (gh *GitHub) ListRepos(ctx context.Context, page int) ([]*github.Repository
 	}
 
 	return repos.Repositories, page + 1, repos.GetIncompleteResults(), nil
-}
-
-func formatRepoName(name string) *string {
-	s := fmt.Sprintf("ghs3-%s", name)
-
-	return &s
 }
 
 func checkMissingPermissions(permissions []string) []string {
