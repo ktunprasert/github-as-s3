@@ -45,7 +45,7 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 
 	log.Debug().Str("path", path).Msg("Temp directory created for InitRepo")
 	log.Debug().Str("path", path).Msg("Calling git.PlainInit")
-	repo, err := git.PlainInit(path, true)
+	repo, err := git.PlainInit(path, false)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 
 	log.Debug().Str("repo_name", name).Msg("Calling remote.PushContext")
 	err = remote.PushContext(ctx, &git.PushOptions{
-		RemoteName: consts.Master,
+		RemoteName: consts.Origin,
 		RemoteURL:  util.GithubURL(g.owner, name),
 		Auth:       g.auth(),
 	})
