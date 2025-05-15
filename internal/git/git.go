@@ -274,7 +274,6 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 		}
 
 		rel, err := filepath.Rel(root, path)
-		slog.Debug().Str("path", path).Str("rel", rel).Msg("walking path")
 		if err != nil {
 			slog.Error().Err(err).Str("path", path).Msg("error getting relative path")
 			return err
@@ -286,6 +285,7 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 			return nil
 		}
 
+		slog.Trace().Str("path", path).Str("rel", rel).Msg("walking path")
 		files = append(files, rel)
 		return nil
 	})
