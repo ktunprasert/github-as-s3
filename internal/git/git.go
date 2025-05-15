@@ -280,12 +280,14 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 		}
 
 		switch true {
-		case strings.HasPrefix(rel, ".git"), strings.HasPrefix(rel, ".ghs3"):
-			slog.Debug().Str("path", path).Str("rel", rel).Msg("skipping path")
+		case strings.HasPrefix(rel, ".git"):
+			slog.Debug().Str("path", path).Str("rel", rel).Msg("skipping dir")
+			return filepath.SkipDir
+		case strings.HasPrefix(rel, ".ghs3"), rel == ".":
 			return nil
 		}
 
-		slog.Trace().Str("path", path).Str("rel", rel).Msg("walking path")
+		slog.Debug().Str("path", path).Str("rel", rel).Msg("walking path")
 		files = append(files, rel)
 		return nil
 	})
