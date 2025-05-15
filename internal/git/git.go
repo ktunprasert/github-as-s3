@@ -17,24 +17,25 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-git/go-git/v5/storage"
-	"github.com/go-git/go-git/v5/storage/memory"
 	"github.com/rs/zerolog/log"
 )
 
 type Git struct {
-	token   string
-	owner   string
-	storage storage.Storer
+	token    string
+	owner    string
+	skipPush bool
 }
 
 func NewGit(token, owner string) *Git {
 	log.Debug().Str("owner", owner).Msg("NewGit called")
 	return &Git{
-		token:   token,
-		owner:   owner,
-		storage: memory.NewStorage(),
+		token: token,
+		owner: owner,
 	}
+}
+
+func (g *Git) SetSkipPush(skipPush bool) {
+	g.skipPush = skipPush
 }
 
 // Used when we create a new repo via GitHub but
@@ -86,11 +87,7 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	err = remote.PushContext(ctx, &git.PushOptions{
-		RemoteName: consts.Origin,
-		RemoteURL:  util.GithubURL(g.owner, name),
-		Auth:       g.auth(),
-	})
+	err = g.push(ctx, remote, util.GithubURL(g.owner, name))
 	if err != nil {
 		return nil, err
 	}
@@ -226,15 +223,10 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 		return err
 	}
 
-	err = remote.PushContext(ctx, &git.PushOptions{
-		RemoteName: consts.Origin,
-		Auth:       g.auth(),
-	})
+	err = g.push(ctx, remote, "")
 	if err != nil {
-		slog.Error().Err(err).Msg("failed to push to remote")
 		return err
 	}
-	slog.Debug().Str("filename", file.Filename).Msg("file pushed to remote")
 
 	slog.Debug().Str("filename", file.Filename).Msg("git.Put.OK")
 	return nil
@@ -342,10 +334,8 @@ func (g *Git) Delete(ctx context.Context, repo *git.Repository, relativeFilepath
 		slog.Error().Err(err).Msg("failed to get remote 'origin'")
 		return err
 	}
-	err = remote.PushContext(ctx, &git.PushOptions{
-		RemoteName: consts.Origin,
-		Auth:       g.auth(),
-	})
+
+	err = g.push(ctx, remote, "")
 	if err != nil {
 		slog.Error().Err(err).Msg("failed to push file deletion to remote")
 		return err
@@ -365,4 +355,26 @@ func (g *Git) signature() *object.Signature {
 		Email: "ktunprasert@outlook.com",
 		When:  time.Now(),
 	}
+}
+
+func (g *Git) push(ctx context.Context, remote *git.Remote, reponame string) error {
+	if g.skipPush {
+		log.Ctx(ctx).Debug().Msg("skipping push")
+		return nil
+	}
+
+	if remote == nil {
+		return errors.New("remote is nil")
+	}
+
+	pushOpts := &git.PushOptions{
+		RemoteName: consts.Origin,
+		Auth:       g.auth(),
+	}
+
+	if len(reponame) > 0 {
+		pushOpts.RemoteURL = util.GithubURL(g.owner, reponame)
+	}
+
+	return remote.PushContext(ctx, pushOpts)
 }
