@@ -133,62 +133,87 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 }
 
 func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.FileHeader) error {
+	slog := util.LogCtx(ctx, "git.Put").With().Str("component", "git.Put").Logger()
+	slog.Debug().Str("filename", func() string {
+		if file != nil {
+			return file.Filename
+		}
+		return ""
+	}()).Msg("git.Put.Start")
+
 	if repo == nil {
+		slog.Error().Msg("repo is nil")
 		return errors.New("repo is nil")
 	}
 
 	if file == nil {
+		slog.Error().Msg("file is nil")
 		return errors.New("file is nil")
 	}
 
 	src, err := file.Open()
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to open file")
 		return err
 	}
+	slog.Debug().Str("filename", file.Filename).Msg("file opened successfully")
 
 	wt, err := repo.Worktree()
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to get worktree")
 		return err
 	}
 
 	path := wt.Filesystem.Root()
 	if path == "" {
+		slog.Error().Msg("worktree path is empty")
 		return errors.New("path is empty")
 	}
+	slog.Debug().Str("path", path).Msg("worktree path resolved")
 
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
+			slog.Error().Str("path", path).Msg("worktree path does not exist")
 			return errors.New("path does not exist")
 		}
+		slog.Error().Err(err).Msg("failed to stat worktree path")
 		return err
 	}
 
 	dst, err := wt.Filesystem.Create(file.Filename)
 	if err != nil {
+		slog.Error().Err(err).Str("filename", file.Filename).Msg("failed to create destination file")
 		return err
 	}
 
 	if _, err := io.Copy(dst, src); err != nil {
+		slog.Error().Err(err).Str("filename", file.Filename).Msg("failed to copy file contents")
 		return err
 	}
+	slog.Debug().Str("filename", file.Filename).Msg("file copied successfully")
 
 	_ = src.Close()
 	_ = dst.Close()
 
 	_, err = wt.Add(file.Filename)
 	if err != nil {
+		slog.Error().Err(err).Str("filename", file.Filename).Msg("failed to add file to git")
 		return err
 	}
+	slog.Debug().Str("filename", file.Filename).Msg("file added to git index")
 
 	_, err = wt.Commit("[GHS3] add file "+file.Filename, &git.CommitOptions{
 		Author: g.signature(),
 	})
 	if err != nil {
+		slog.Error().Err(err).Str("filename", file.Filename).Msg("failed to commit file")
 		return err
 	}
+	slog.Debug().Str("filename", file.Filename).Msg("file committed")
 
 	remote, err := repo.Remote("origin")
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to get remote 'origin'")
 		return err
 	}
 
@@ -197,9 +222,12 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 		Auth:       g.auth(),
 	})
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to push to remote")
 		return err
 	}
+	slog.Debug().Str("filename", file.Filename).Msg("file pushed to remote")
 
+	slog.Debug().Str("filename", file.Filename).Msg("git.Put.OK")
 	return nil
 }
 
