@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -261,12 +262,65 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 	return io.ReadAll(f)
 }
 
-func (g *Git) List(ctx context.Context, repoName string) ([]string, error) {
-	return nil, nil
+func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) {
+	wt, err := repo.Worktree()
+	if err != nil {
+		return nil, err
+	}
+
+	root := wt.Filesystem.Root()
+	var files []string
+	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			// skip .git and other hidden dirs
+			if rel == ".git" || rel == "." {
+				return nil
+			}
+			return nil
+		}
+		if rel == ".ghs3" {
+			return nil
+		}
+		files = append(files, rel)
+		return nil
+	})
+	return files, err
 }
 
-func (g *Git) Delete(ctx context.Context, repoName string) error {
-	return nil
+func (g *Git) Delete(ctx context.Context, repo *git.Repository, relativeFilepath string) error {
+	wt, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+	err = wt.Filesystem.Remove(relativeFilepath)
+	if err != nil {
+		return err
+	}
+	_, err = wt.Remove(relativeFilepath)
+	if err != nil {
+		return err
+	}
+	_, err = wt.Commit("[GHS3] delete file "+relativeFilepath, &git.CommitOptions{
+		Author: g.signature(),
+	})
+	if err != nil {
+		return err
+	}
+	remote, err := repo.Remote("origin")
+	if err != nil {
+		return err
+	}
+	return remote.PushContext(ctx, &git.PushOptions{
+		RemoteName: consts.Origin,
+		Auth:       g.auth(),
+	})
 }
 
 func (g *Git) auth() transport.AuthMethod {
