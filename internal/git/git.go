@@ -75,11 +75,7 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 	}
 
 	_, err = wt.Commit("batman", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "GHS3",
-			Email: "ktunprasert@outlook.com",
-			When:  time.Now(),
-		},
+		Author: g.signature(),
 	})
 	if err != nil {
 		return nil, err
@@ -134,6 +130,16 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	return repo, nil
 }
 
+// func (g *Git)
+
 func (g *Git) auth() transport.AuthMethod {
 	return &http.BasicAuth{Username: "non-empty-string", Password: g.token}
+}
+
+func (g *Git) signature() *object.Signature {
+	return &object.Signature{
+		Name:  "GHS3",
+		Email: "ktunprasert@outlook.com",
+		When:  time.Now(),
+	}
 }
