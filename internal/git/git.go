@@ -238,7 +238,11 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 	return nil
 }
 
-func (g *Git) Get(ctx context.Context, repoName, relativeFilepath string) error {
+func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath string) error {
+	if repo == nil {
+		return errors.New("repo is nil")
+	}
+
 	return nil
 }
 
