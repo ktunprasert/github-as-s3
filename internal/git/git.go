@@ -263,8 +263,12 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 }
 
 func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) {
+	slog := util.LogCtx(ctx, "git.List").With().Str("component", "git.List").Logger()
+	slog.Debug().Msg("git.List.Start")
+
 	wt, err := repo.Worktree()
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to get worktree")
 		return nil, err
 	}
 
@@ -272,14 +276,15 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 	var files []string
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			slog.Error().Err(err).Str("path", path).Msg("error walking path")
 			return err
 		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
+			slog.Error().Err(err).Str("path", path).Msg("error getting relative path")
 			return err
 		}
 		if info.IsDir() {
-			// skip .git and other hidden dirs
 			if rel == ".git" || rel == "." {
 				return nil
 			}
@@ -291,36 +296,62 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 		files = append(files, rel)
 		return nil
 	})
-	return files, err
+	if err != nil {
+		slog.Error().Err(err).Msg("error walking file tree")
+		return nil, err
+	}
+	slog.Debug().Int("file_count", len(files)).Msg("git.List.OK")
+	return files, nil
 }
 
 func (g *Git) Delete(ctx context.Context, repo *git.Repository, relativeFilepath string) error {
+	slog := util.LogCtx(ctx, "git.Delete").With().Str("component", "git.Delete").Logger()
+	slog.Debug().Str("filename", relativeFilepath).Msg("git.Delete.Start")
+
 	wt, err := repo.Worktree()
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to get worktree")
 		return err
 	}
 	err = wt.Filesystem.Remove(relativeFilepath)
 	if err != nil {
+		slog.Error().Err(err).Str("filename", relativeFilepath).Msg("failed to remove file from filesystem")
 		return err
 	}
+	slog.Debug().Str("filename", relativeFilepath).Msg("file removed from filesystem")
+
 	_, err = wt.Remove(relativeFilepath)
 	if err != nil {
+		slog.Error().Err(err).Str("filename", relativeFilepath).Msg("failed to remove file from git index")
 		return err
 	}
+	slog.Debug().Str("filename", relativeFilepath).Msg("file removed from git index")
+
 	_, err = wt.Commit("[GHS3] delete file "+relativeFilepath, &git.CommitOptions{
 		Author: g.signature(),
 	})
 	if err != nil {
+		slog.Error().Err(err).Str("filename", relativeFilepath).Msg("failed to commit file deletion")
 		return err
 	}
+	slog.Debug().Str("filename", relativeFilepath).Msg("file deletion committed")
+
 	remote, err := repo.Remote("origin")
 	if err != nil {
+		slog.Error().Err(err).Msg("failed to get remote 'origin'")
 		return err
 	}
-	return remote.PushContext(ctx, &git.PushOptions{
+	err = remote.PushContext(ctx, &git.PushOptions{
 		RemoteName: consts.Origin,
 		Auth:       g.auth(),
 	})
+	if err != nil {
+		slog.Error().Err(err).Msg("failed to push file deletion to remote")
+		return err
+	}
+	slog.Debug().Str("filename", relativeFilepath).Msg("file deletion pushed to remote")
+	slog.Debug().Str("filename", relativeFilepath).Msg("git.Delete.OK")
+	return nil
 }
 
 func (g *Git) auth() transport.AuthMethod {
