@@ -10,7 +10,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -239,7 +238,7 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 	return nil
 }
 
-func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath string) (billy.File, error) {
+func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath string) ([]byte, error) {
 	if repo == nil {
 		return nil, errors.New("repo is nil")
 	}
@@ -249,7 +248,7 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 		return nil, err
 	}
 
-	dst, err := wt.Filesystem.Open(relativeFilepath)
+	f, err := wt.Filesystem.Open(relativeFilepath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrFileNotExists
@@ -257,8 +256,9 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 
 		return nil, err
 	}
+	defer f.Close()
 
-	return dst, nil
+	return io.ReadAll(f)
 }
 
 func (g *Git) List(ctx context.Context, repoName string) ([]string, error) {
