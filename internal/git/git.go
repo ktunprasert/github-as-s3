@@ -6,7 +6,6 @@ import (
 	"github-as-s3/internal/consts"
 	"github-as-s3/internal/util"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -59,20 +58,22 @@ func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error
 		return nil, err
 	}
 
-	err = os.WriteFile(filepath.Join(path, ".ghs3"), []byte("Managed by ghs3"), 0644)
-	if err != nil {
-		return nil, err
-	}
-
 	wt, err := repo.Worktree()
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = wt.Add(".ghs3")
+	f, err := wt.Filesystem.Create(".ghs3")
 	if err != nil {
 		return nil, err
 	}
+
+	_, err = wt.Add(f.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	_ = f.Close()
 
 	_, err = wt.Commit("batman", &git.CommitOptions{
 		Author: g.signature(),
@@ -102,7 +103,6 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	if err != nil {
 		return nil, err
 	}
-	// log.Ctx(ctx).With
 	slog.Debug().Str("path", path).Msg("Temp directory created for Clone")
 
 	repo, err := git.PlainCloneContext(ctx, path, true, &git.CloneOptions{
