@@ -340,7 +340,6 @@ func (g *Git) Delete(ctx context.Context, repo *git.Repository, relativeFilepath
 		slog.Error().Err(err).Msg("failed to push file deletion to remote")
 		return err
 	}
-	slog.Debug().Str("filename", relativeFilepath).Msg("file deletion pushed to remote")
 	slog.Debug().Str("filename", relativeFilepath).Msg("git.Delete.OK")
 	return nil
 }
@@ -376,5 +375,11 @@ func (g *Git) push(ctx context.Context, remote *git.Remote, reponame string) err
 		pushOpts.RemoteURL = util.GithubURL(g.owner, reponame)
 	}
 
-	return remote.PushContext(ctx, pushOpts)
+	err := remote.PushContext(ctx, pushOpts)
+	if err != nil {
+		return err
+	}
+
+	log.Ctx(ctx).Debug().Msg("push OK")
+	return nil
 }
