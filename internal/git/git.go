@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -279,20 +280,20 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 			slog.Error().Err(err).Str("path", path).Msg("error walking path")
 			return err
 		}
+
 		rel, err := filepath.Rel(root, path)
+		slog.Debug().Str("path", path).Str("rel", rel).Msg("walking path")
 		if err != nil {
 			slog.Error().Err(err).Str("path", path).Msg("error getting relative path")
 			return err
 		}
-		if info.IsDir() {
-			if rel == ".git" || rel == "." {
-				return nil
-			}
+
+		switch true {
+		case strings.HasPrefix(rel, ".git"), strings.HasPrefix(rel, ".ghs3"):
+			slog.Debug().Str("path", path).Str("rel", rel).Msg("skipping path")
 			return nil
 		}
-		if rel == ".ghs3" {
-			return nil
-		}
+
 		files = append(files, rel)
 		return nil
 	})
