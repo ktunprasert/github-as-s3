@@ -107,7 +107,7 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	}
 	slog.Debug().Str("path", path).Msg("Temp directory created for Clone")
 
-	repo, err := git.PlainCloneContext(ctx, path, true, &git.CloneOptions{
+	repo, err := git.PlainCloneContext(ctx, path, false, &git.CloneOptions{
 		URL:           util.GithubURL(g.owner, name),
 		Auth:          g.auth(),
 		ReferenceName: consts.Master,
