@@ -206,6 +206,13 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 		Author: g.signature(),
 	})
 	if err != nil {
+		// if user uploads the same file with the same content
+		// we should let the user do it
+		if errors.Is(err, git.ErrEmptyCommit) {
+			slog.Debug().Msg("empty commit, skipping")
+			return nil
+		}
+
 		slog.Error().Err(err).Str("filename", file.Filename).Msg("failed to commit file")
 		return err
 	}
