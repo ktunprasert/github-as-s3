@@ -5,6 +5,8 @@ import (
 	"errors"
 	"github-as-s3/internal/consts"
 	"github-as-s3/internal/util"
+	"io"
+	"mime/multipart"
 	"os"
 	"time"
 
@@ -130,7 +132,88 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	return repo, nil
 }
 
-// func (g *Git)
+func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.FileHeader) error {
+	if repo == nil {
+		return errors.New("repo is nil")
+	}
+
+	if file == nil {
+		return errors.New("file is nil")
+	}
+
+	src, err := file.Open()
+	if err != nil {
+		return err
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	path := wt.Filesystem.Root()
+	if path == "" {
+		return errors.New("path is empty")
+	}
+
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return errors.New("path does not exist")
+		}
+		return err
+	}
+
+	dst, err := wt.Filesystem.Create(file.Filename)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		return err
+	}
+
+	_ = src.Close()
+	_ = dst.Close()
+
+	_, err = wt.Add(file.Filename)
+	if err != nil {
+		return err
+	}
+
+	_, err = wt.Commit("[GHS3] add file "+file.Filename, &git.CommitOptions{
+		Author: g.signature(),
+	})
+	if err != nil {
+		return err
+	}
+
+	remote, err := repo.Remote("origin")
+	if err != nil {
+		return err
+	}
+
+	err = remote.PushContext(ctx, &git.PushOptions{
+		RemoteName: consts.Origin,
+		Auth:       g.auth(),
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (g *Git) Get(ctx context.Context, repoName, relativeFilepath string) error {
+	return nil
+}
+
+func (g *Git) List(ctx context.Context, repoName string) ([]string, error) {
+	return nil, nil
+}
+
+func (g *Git) Delete(ctx context.Context, repoName string) error {
+	return nil
+}
 
 func (g *Git) auth() transport.AuthMethod {
 	return &http.BasicAuth{Username: "non-empty-string", Password: g.token}
