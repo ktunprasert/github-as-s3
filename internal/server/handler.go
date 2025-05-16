@@ -30,6 +30,9 @@ func NewS3Handler(gh *github.GitHub, git *git.Git) S3API {
 	}
 }
 
+func (h *Handler) HeadBucket(c echo.Context) error {
+	return c.String(http.StatusNotImplemented, "Not Implemented")
+}
 
 func (h *Handler) HeadObject(c echo.Context) error {
 	bucketName := c.Param("bucket")

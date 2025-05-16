@@ -157,6 +157,9 @@ func (gh *GitHub) ListRepos(ctx context.Context, page, perPage int, prefix strin
 	return repos.Repositories, page + 1, repos.GetIncompleteResults(), nil
 }
 
+// TODO: implement HeadBucket
+// func (gh *GitHub) HeadRepo(){}
+
 // can be directory or file
 func (gh *GitHub) Head(ctx context.Context, name, filepath, version string) (*github.RepositoryContent, []*github.RepositoryContent, *time.Time, error) {
 	if name == "" {
@@ -193,8 +196,8 @@ func (gh *GitHub) Head(ctx context.Context, name, filepath, version string) (*gi
 	// 	// its ok if this doesnt pass we fuzzy the date
 	// 	logger.Debug().Msg("could not get commit - using time.Now()")
 	// } else {
-	// 	logger.Debug().Time("last_modified", d.Committer.Date.Time).Msg("last modified")
 	// 	lastModified = d.Committer.Date.Time
+	// 	logger.Debug().Time("last_modified", d.Committer.Date.Time).Msg("last modified")
 	// }
 	logger.Debug().Any("filecontent", fileContent).Any("directorycontent", directoryContent).Msg("content")
 

@@ -7,6 +7,7 @@ type S3API interface {
 	CreateBucket(echo.Context) error
 	DeleteBucket(echo.Context) error
 	ListBuckets(echo.Context) error
+	HeadBucket(echo.Context) error
 
 	PutObject(echo.Context) error
 	GetObject(echo.Context) error
@@ -21,6 +22,7 @@ func RegisterRoutes(e *echo.Echo, api S3API) {
 	e.PUT("/:bucket", api.CreateBucket)
 	e.DELETE("/:bucket", api.DeleteBucket)
 	e.GET("/", api.ListBuckets)
+	e.HEAD("/:bucket", api.HeadBucket)
 
 	// Object operations
 	e.PUT("/:bucket/*", api.PutObject)
