@@ -27,7 +27,6 @@ type Git struct {
 }
 
 func NewGit(token, owner string) *Git {
-	log.Debug().Str("owner", owner).Msg("NewGit called")
 	return &Git{
 		token: token,
 		owner: owner,
