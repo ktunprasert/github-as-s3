@@ -130,6 +130,78 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	return repo, nil
 }
 
+func (g *Git) PutRaw(ctx context.Context, repo *git.Repository, key string, src io.ReadCloser) error {
+	slog := util.LogCtx(ctx, "git.PutRaw").With().Str("component", "git.PutRaw").Logger()
+	slog.Debug().Str("filename", key).Msg("git.PutRaw.Start")
+
+	if repo == nil {
+		slog.Error().Msg("repo is nil")
+		return errors.New("repo is nil")
+	}
+
+	wt, err := repo.Worktree()
+	if err != nil {
+		slog.Error().Err(err).Msg("failed to get worktree")
+		return err
+	}
+
+	path := wt.Filesystem.Root()
+	if path == "" {
+		slog.Error().Msg("worktree path is empty")
+		return errors.New("path is empty")
+	}
+	slog.Debug().Str("path", path).Msg("worktree path resolved")
+
+	dst, err := wt.Filesystem.Create(key)
+	if err != nil {
+		slog.Error().Err(err).Str("filename", key).Msg("failed to create destination file")
+		return err
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		slog.Error().Err(err).Str("filename", key).Msg("failed to copy file contents")
+		return err
+	}
+	slog.Debug().Str("filename", key).Msg("file copied successfully")
+
+	_ = src.Close()
+	_ = dst.Close()
+
+	_, err = wt.Add(key)
+	if err != nil {
+		slog.Error().Err(err).Str("filename", key).Msg("failed to add file to git")
+		return err
+	}
+
+	_, err = wt.Commit("[GHS3] add file "+key, &git.CommitOptions{Author: g.signature()})
+	if err != nil {
+		if errors.Is(err, git.ErrEmptyCommit) {
+			slog.Debug().Msg("empty commit, skipping")
+			return nil
+		}
+
+		slog.Error().Err(err).Str("filename", key).Msg("failed to commit file")
+		return err
+	}
+
+	slog.Debug().Str("filename", key).Msg("file committed")
+
+	remote, err := repo.Remote("origin")
+	if err != nil {
+		slog.Error().Err(err).Msg("failed to get remote 'origin'")
+		return err
+	}
+
+	err = g.push(ctx, remote, "")
+	if err != nil {
+		return err
+	}
+
+	slog.Debug().Str("filename", key).Msg("git.Put.OK")
+
+	return nil
+}
+
 func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.FileHeader) error {
 	slog := util.LogCtx(ctx, "git.Put").With().Str("component", "git.Put").Logger()
 	slog.Debug().Str("filename", func() string {
