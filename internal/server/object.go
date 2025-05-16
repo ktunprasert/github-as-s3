@@ -4,7 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"github-as-s3/internal/git"
+	"github-as-s3/internal/s3"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -224,5 +227,128 @@ func (h *Handler) DeleteObject(c echo.Context) error {
 }
 
 func (h *Handler) ListObjectsV2(c echo.Context) error {
-	return c.String(http.StatusNotImplemented, "ListObjectsV2 not implemented")
+	ctx := c.Request().Context()
+	logger := log.Ctx(ctx).With().Str("command", "ListObjectsV2").Logger()
+
+	bucketName := c.Param("bucket")
+	if bucketName == "" {
+		logger.Warn().Msg("Bucket name is missing")
+		return c.String(http.StatusBadRequest, "Bucket name is missing")
+	}
+	logger = logger.With().Str("bucket", bucketName).Logger()
+
+	// Parse query parameters for echoing back, but not for limiting results
+	requestPrefix := c.QueryParam("prefix")
+	requestDelimiter := c.QueryParam("delimiter")
+	requestMaxKeysStr := c.QueryParam("max-keys")
+	requestContinuationToken := c.QueryParam("continuation-token") // Will be echoed
+	requestStartAfter := c.QueryParam("start-after")               // Will be echoed
+
+	maxKeysForResponse := 1000 // Default MaxKeys for S3 response field
+	if requestMaxKeysStr != "" {
+		parsedMaxKeys, err := strconv.Atoi(requestMaxKeysStr)
+		if err == nil && parsedMaxKeys >= 0 { // S3 allows 0 for MaxKeys
+			maxKeysForResponse = parsedMaxKeys
+		} else {
+			logger.Warn().Str("max-keys", requestMaxKeysStr).Msg("Invalid max-keys value, using default for response field.")
+		}
+	}
+
+	logger.Debug().
+		Str("prefix", requestPrefix).
+		Str("delimiter", requestDelimiter).
+		Int("maxKeys (for_response_echo)", maxKeysForResponse).
+		Str("continuationToken (for_response_echo)", requestContinuationToken).
+		Str("startAfter (for_response_echo)", requestStartAfter).
+		Msg("ListObjectsV2.Start - returning all results")
+
+	repo, err := h.git.Clone(ctx, bucketName)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to clone repository")
+		return c.String(http.StatusNotFound, fmt.Sprintf("Bucket '%s' not found", bucketName))
+	}
+
+	allFilesInfo, err := h.git.List(ctx, repo)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to list objects from repository")
+		return c.String(http.StatusInternalServerError, "Failed to list objects")
+	}
+
+	var sortedKeys []string
+	for k := range allFilesInfo {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	var contents []s3.ContentsType
+	commonPrefixesMap := make(map[string]struct{})
+
+	for _, key := range sortedKeys {
+		fileInfo := allFilesInfo[key] // Get the os.FileInfo for the key
+
+		if requestPrefix != "" && !strings.HasPrefix(key, requestPrefix) {
+			continue
+		}
+
+		if requestDelimiter != "" {
+			keyRelativeToPrefix := strings.TrimPrefix(key, requestPrefix)
+			delimiterIndex := strings.Index(keyRelativeToPrefix, requestDelimiter)
+
+			if delimiterIndex != -1 {
+				// This key contributes to a common prefix
+				commonPrefix := requestPrefix + keyRelativeToPrefix[:delimiterIndex+len(requestDelimiter)]
+				commonPrefixesMap[commonPrefix] = struct{}{}
+			} else {
+				// This key is an object
+				contents = append(contents, s3.ContentsType{
+					Key:          key,
+					LastModified: fileInfo.ModTime().UTC().Format("2006-01-02T15:04:05.000Z"),
+					Size:         fileInfo.Size(),
+					StorageClass: "STANDARD",
+					// ETag is omitted as per simplification
+				})
+			}
+		} else {
+			// No delimiter, so everything matching the prefix is an object
+			contents = append(contents, s3.ContentsType{
+				Key:          key,
+				LastModified: fileInfo.ModTime().UTC().Format("2006-01-02T15:04:05.000Z"),
+				Size:         fileInfo.Size(),
+				StorageClass: "STANDARD",
+				// ETag is omitted
+			})
+		}
+	}
+
+	var commonPrefixesList []s3.CommonPrefixType
+	for cp := range commonPrefixesMap {
+		commonPrefixesList = append(commonPrefixesList, s3.CommonPrefixType{Prefix: cp})
+	}
+	sort.Slice(commonPrefixesList, func(i, j int) bool {
+		return commonPrefixesList[i].Prefix < commonPrefixesList[j].Prefix
+	})
+
+	result := s3.ListBucketResult{
+		Xmlns:             "http://s3.amazonaws.com/doc/2006-03-01/",
+		Name:              bucketName,
+		Prefix:            requestPrefix,
+		Delimiter:         requestDelimiter,
+		MaxKeys:           maxKeysForResponse, // Echoing back the parsed or default MaxKeys
+		IsTruncated:       false,              // Always false as we return all results
+		Contents:          contents,
+		CommonPrefixes:    commonPrefixesList,
+		KeyCount:          len(contents) + len(commonPrefixesList),
+		ContinuationToken: requestContinuationToken, // Echo back if provided
+		StartAfter:        requestStartAfter,        // Echo back if provided
+		// NextContinuationToken is omitted (or empty string) as IsTruncated is false
+	}
+
+	logger.Info().
+		Int("returnedContents", len(result.Contents)).
+		Int("returnedCommonPrefixes", len(result.CommonPrefixes)).
+		Bool("isTruncated", result.IsTruncated).
+		Msg("ListObjectsV2.OK - all results returned")
+
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
+	return c.XML(http.StatusOK, result)
 }

@@ -337,7 +337,7 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 	return bytes, fileInfo, err
 }
 
-func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) {
+func (g *Git) List(ctx context.Context, repo *git.Repository) (map[string]os.FileInfo, error) {
 	slog := util.LogCtx(ctx, "git.List").With().Str("component", "git.List").Logger()
 	slog.Debug().Msg("git.List.Start")
 
@@ -348,7 +348,7 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 	}
 
 	root := wt.Filesystem.Root()
-	var files []string
+	files := make(map[string]os.FileInfo)
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			slog.Error().Err(err).Str("path", path).Msg("error walking path")
@@ -370,7 +370,8 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) 
 		}
 
 		slog.Debug().Str("path", path).Str("rel", rel).Msg("walking path")
-		files = append(files, rel)
+
+		files[rel] = info
 		return nil
 	})
 	if err != nil {
