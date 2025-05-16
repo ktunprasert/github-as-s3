@@ -136,18 +136,18 @@ func (gh *GitHub) DeleteRepo(ctx context.Context, name string) error {
 	return nil
 }
 
-func (gh *GitHub) ListRepos(ctx context.Context, page int) ([]*github.Repository, int, bool, error) {
+func (gh *GitHub) ListRepos(ctx context.Context, page, perPage int, prefix string) ([]*github.Repository, int, bool, error) {
 	if page < 1 {
 		return nil, 0, false, fmt.Errorf("page must be greater than 0")
 	}
 
-	search := fmt.Sprintf("user:%s ghs3- in:name", gh.owner)
+	search := fmt.Sprintf("user:%s ghs3-%s in:name", gh.owner, prefix)
 	repos, _, err := gh.client.Search.Repositories(ctx, search, &github.SearchOptions{
 		Sort:  "updated",
 		Order: "desc",
 		ListOptions: github.ListOptions{
 			Page:    page,
-			PerPage: 25,
+			PerPage: perPage,
 		},
 	})
 	if err != nil {
@@ -155,6 +155,10 @@ func (gh *GitHub) ListRepos(ctx context.Context, page int) ([]*github.Repository
 	}
 
 	return repos.Repositories, page + 1, repos.GetIncompleteResults(), nil
+}
+
+func (gh GitHub) GetOwner() string {
+	return gh.owner
 }
 
 func checkMissingPermissions(permissions []string) []string {

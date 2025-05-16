@@ -1,10 +1,13 @@
 package server
 
 import (
+	"encoding/xml"
 	"errors"
 	"github-as-s3/internal/github"
 	"github-as-s3/internal/s3"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
@@ -92,6 +95,90 @@ func (h *Handler) DeleteBucket(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+const defaultMaxBuckets = 25
+const githubMaxPerPage = 100
+
 func (h *Handler) ListBuckets(c echo.Context) error {
-	return c.String(http.StatusNotImplemented, "ListBuckets not implemented")
+	ctx := c.Request().Context()
+	logger := log.Ctx(ctx)
+
+	continuationTokenStr := c.QueryParam("continuation-token")
+	maxBucketsStr := c.QueryParam("max-buckets")
+	prefix := c.QueryParam("prefix")
+
+	logger.Debug().
+		Str("continuation-token", continuationTokenStr).
+		Str("max-buckets", maxBucketsStr).
+		Str("prefix", prefix).
+		Msg("Processing ListBuckets request")
+
+	page := 1
+	if continuationTokenStr != "" {
+		parsedPage, err := strconv.Atoi(continuationTokenStr)
+		if err == nil && parsedPage > 0 {
+			page = parsedPage
+		} else {
+			logger.Warn().Str("continuation-token", continuationTokenStr).Msg("Invalid continuation-token, using default page 1")
+		}
+	}
+
+	perPage := defaultMaxBuckets
+	if maxBucketsStr != "" {
+		parsedMax, err := strconv.Atoi(maxBucketsStr)
+		if err == nil && parsedMax > 0 {
+			perPage = parsedMax
+			if perPage > githubMaxPerPage {
+				logger.Warn().Int("requested_max_buckets", perPage).Int("capped_at", githubMaxPerPage).Msg("max-buckets capped")
+				perPage = githubMaxPerPage
+			}
+		} else {
+			logger.Warn().Str("max-buckets", maxBucketsStr).Msg("Invalid max-buckets, using default")
+		}
+	}
+
+	ghReposPage, nextPageFromGH, incompleteResults, err := h.gh.ListRepos(ctx, page, perPage, prefix)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to list GitHub repositories")
+		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error listing repositories.", "")
+	}
+
+	s3ApiBuckets := make([]s3.Bucket, 0, len(ghReposPage))
+	for _, repo := range ghReposPage {
+		if repo.Name == nil || repo.CreatedAt == nil {
+			logger.Warn().Str("repo_id", repo.GetNodeID()).Msg("Skipping repository with nil name or creation date during ListBuckets")
+			continue
+		}
+		s3ApiBuckets = append(s3ApiBuckets, s3.Bucket{
+			Name:         repo.GetName(),
+			CreationDate: repo.GetCreatedAt().Time.UTC().Format(time.RFC3339),
+		})
+	}
+
+	owner := h.gh.GetOwner()
+
+	s3Owner := s3.Owner{
+		ID:          owner,
+		DisplayName: owner,
+	}
+
+	result := s3.ListAllMyBucketsResult{
+		Owner:   s3Owner,
+		Buckets: s3ApiBuckets,
+	}
+
+	if incompleteResults {
+		result.IsTruncated = true
+		result.NextContinuationToken = nextPageFromGH
+	}
+
+	xmlBytes, err := xml.MarshalIndent(result, "", "  ")
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to marshal ListBuckets response to XML")
+		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error preparing the response.", "")
+	}
+
+	finalXML := xml.Header + string(xmlBytes)
+
+	c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationXMLCharsetUTF8)
+	return c.String(http.StatusOK, finalXML)
 }

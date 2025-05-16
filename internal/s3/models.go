@@ -19,3 +19,23 @@ type CreateBucketConfiguration struct {
 	XMLName            xml.Name `xml:"CreateBucketConfiguration"`
 	LocationConstraint string   `xml:"LocationConstraint,omitempty"`
 }
+
+type Bucket struct {
+	XMLName      xml.Name `xml:"Bucket"`
+	Name         string   `xml:"Name"`
+	CreationDate string   `xml:"CreationDate"`
+}
+
+type Owner struct {
+	XMLName     xml.Name `xml:"Owner"`
+	ID          string   `xml:"ID"`
+	DisplayName string   `xml:"DisplayName"`
+}
+
+type ListAllMyBucketsResult struct {
+	XMLName               xml.Name `xml:"ListAllMyBucketsResult"`
+	Owner                 Owner    `xml:"Owner"`
+	Buckets               []Bucket `xml:"Buckets>Bucket"`
+	IsTruncated           bool     `xml:"IsTruncated,omitempty"`
+	NextContinuationToken int      `xml:"NextContinuationToken,omitempty"`
+}
