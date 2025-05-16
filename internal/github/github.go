@@ -157,6 +157,50 @@ func (gh *GitHub) ListRepos(ctx context.Context, page, perPage int, prefix strin
 	return repos.Repositories, page + 1, repos.GetIncompleteResults(), nil
 }
 
+// can be directory or file
+func (gh *GitHub) Head(ctx context.Context, name, filepath, version string) (*github.RepositoryContent, []*github.RepositoryContent, *time.Time, error) {
+	if name == "" {
+		return nil, nil, nil, fmt.Errorf("name cannot be empty")
+	}
+
+	logger := log.Ctx(ctx).With().Str("repo", name).Str("path", filepath).Logger()
+
+	getContentOptions := &github.RepositoryContentGetOptions{}
+
+	if version != "" {
+		getContentOptions.Ref = version
+	}
+
+	fileContent, directoryContent, _, err := gh.client.Repositories.GetContents(ctx, gh.owner, *util.RepoName(name), filepath, getContentOptions)
+	if err != nil {
+		var ghErrResp *github.ErrorResponse
+		if ok := errors.As(err, &ghErrResp); ok {
+			logger.Debug().Any("github_err", ghErrResp).Msg("GitHub API error")
+		}
+		return nil, nil, nil, err
+	}
+
+	lastModified := time.Now()
+
+	// TODO: stop faking time
+	// d, _, err := gh.client.Git.GetCommit(ctx, gh.owner, *util.RepoName(name), *fileContent.SHA)
+	// if err != nil {
+	// 	var ghErrResp *github.ErrorResponse
+	// 	if ok := errors.As(err, &ghErrResp); ok {
+	// 		logger.Debug().Any("github_err", ghErrResp).Msg("GitHub API error")
+	// 	}
+
+	// 	// its ok if this doesnt pass we fuzzy the date
+	// 	logger.Debug().Msg("could not get commit - using time.Now()")
+	// } else {
+	// 	logger.Debug().Time("last_modified", d.Committer.Date.Time).Msg("last modified")
+	// 	lastModified = d.Committer.Date.Time
+	// }
+	logger.Debug().Any("filecontent", fileContent).Any("directorycontent", directoryContent).Msg("content")
+
+	return fileContent, directoryContent, &lastModified, nil
+}
+
 func (gh GitHub) GetOwner() string {
 	return gh.owner
 }
