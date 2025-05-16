@@ -1,10 +1,10 @@
 package server
 
 import (
-	"encoding/xml"
 	"errors"
 	"github-as-s3/internal/git"
 	"github-as-s3/internal/github"
+	"github-as-s3/internal/s3"
 	"net/http"
 	"regexp"
 	"strings"
@@ -12,22 +12,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 )
-
-// S3Error represents the XML structure for S3 error responses.
-type S3Error struct {
-	XMLName    xml.Name `xml:"Error"`
-	Code       string   `xml:"Code"`
-	Message    string   `xml:"Message"`
-	BucketName string   `xml:"BucketName,omitempty"`
-	Resource   string   `xml:"Resource,omitempty"`
-	RequestID  string   `xml:"RequestId"`
-	HostID     string   `xml:"HostId"` // Placeholder HostID
-}
-
-type CreateBucketConfiguration struct {
-	XMLName            xml.Name `xml:"CreateBucketConfiguration"`
-	LocationConstraint string   `xml:"LocationConstraint,omitempty"`
-}
 
 var (
 	bucketNameRegex      = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
@@ -136,7 +120,7 @@ func (h *Handler) DeleteObject(c echo.Context) error {
 }
 
 func (h *Handler) s3ErrorResponse(c echo.Context, httpStatus int, s3ErrorCode, message, resourceName string) error {
-	errResp := S3Error{
+	errResp := s3.S3Error{
 		Code:      s3ErrorCode,
 		Message:   message,
 		RequestID: c.Response().Header().Get(echo.HeaderXRequestID),
