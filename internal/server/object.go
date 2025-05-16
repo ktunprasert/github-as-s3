@@ -1,9 +1,12 @@
 package server
 
 import (
+	"errors"
 	"fmt"
+	"github-as-s3/internal/git"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
@@ -73,7 +76,80 @@ func (h *Handler) PutObject(c echo.Context) error {
 }
 
 func (h *Handler) GetObject(c echo.Context) error {
-	return c.String(http.StatusNotImplemented, "GetObject not implemented")
+	ctx := c.Request().Context()
+	logger := log.Ctx(ctx).With().Str("command", "GetObject").Logger()
+
+	logger.Debug().Msg("GetObject.Start")
+
+	bucketName := c.Param("bucket")
+	if bucketName == "" {
+		logger.Warn().Msg("Bucket name is missing")
+		return c.String(http.StatusBadRequest, "Bucket name is missing")
+	}
+	logger = logger.With().Str("bucket", bucketName).Logger()
+
+	objectKey := c.Param("*")
+	if objectKey == "" {
+		logger.Warn().Msg("Object key is missing")
+		return c.String(http.StatusBadRequest, "Object key is missing")
+	}
+	objectKey = strings.TrimPrefix(objectKey, "/")
+	if objectKey == "" {
+		logger.Warn().Msg("Object key is missing after trimming prefix")
+		return c.String(http.StatusBadRequest, "Object key is missing")
+	}
+	logger = logger.With().Str("key", objectKey).Logger()
+
+	logger.Debug().Msg("Parsed parameters")
+
+	repo, err := h.git.Clone(ctx, bucketName)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to clone repository")
+		return c.String(http.StatusNotFound, fmt.Sprintf("Bucket (repository) '%s' not found: %v", bucketName, err))
+	}
+	logger.Debug().Msg("Repository cloned successfully")
+
+	objectData, fileInfo, err := h.git.Get(ctx, repo, objectKey)
+	if err != nil {
+		if errors.Is(err, git.ErrFileNotExists) {
+			logger.Warn().Err(err).Msg("Object not found in repository")
+			return c.String(http.StatusNotFound, fmt.Sprintf("Object '%s' not found in bucket '%s'", objectKey, bucketName))
+		}
+		logger.Error().Err(err).Msg("Failed to get object from repository")
+		return c.String(http.StatusInternalServerError, fmt.Sprintf("Failed to get object '%s': %v", objectKey, err))
+	}
+	logger.Debug().Msg("Object retrieved successfully")
+
+	var commitSHA string
+	headRef, err := repo.Head()
+	if err != nil {
+		logger.Warn().Err(err).Msg("Failed to get repository HEAD for versioning. ETag/versionId may be affected.")
+	} else if headRef != nil {
+		commitSHA = headRef.Hash().String()
+		logger.Debug().Str("commitSHA", commitSHA).Msg("Got commit SHA for version ID/ETag")
+	} else {
+		logger.Warn().Msg("repo.Head() returned nil ref without error. ETag/versionId may be affected.")
+	}
+
+	if commitSHA != "" {
+		c.Response().Header().Set("ETag", fmt.Sprintf(`"%s"`, commitSHA))
+		c.Response().Header().Set("x-amz-version-id", commitSHA)
+	}
+
+	if fileInfo != nil {
+		c.Response().Header().Set("Last-Modified", fileInfo.ModTime().UTC().Format(http.TimeFormat))
+		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+	} else {
+		// Fallback if fileInfo is somehow nil, though git.Get should provide it.
+		c.Response().Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", len(objectData)))
+	}
+
+	contentType := http.DetectContentType(objectData)
+	c.Response().Header().Set("Content-Type", contentType)
+
+	logger.Info().Str("key", objectKey).Str("bucket", bucketName).Str("versionId", commitSHA).Msg("GetObject.OK")
+	return c.Blob(http.StatusOK, contentType, objectData)
 }
 
 func (h *Handler) ListObjectsV2(c echo.Context) error {

@@ -303,27 +303,38 @@ func (g *Git) Put(ctx context.Context, repo *git.Repository, file *multipart.Fil
 	return nil
 }
 
-func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath string) ([]byte, error) {
+func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath string) ([]byte, os.FileInfo, error) {
 	if repo == nil {
-		return nil, errors.New("repo is nil")
+		return nil, nil, errors.New("repo is nil")
 	}
+
+	logger := log.Ctx(ctx).With().Str("component", "git.Get").Str("filename", relativeFilepath).Logger()
 
 	wt, err := repo.Worktree()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	f, err := wt.Filesystem.Open(relativeFilepath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrFileNotExists
+			logger.Error().Err(err).Msg("file does not exist")
+			return nil, nil, ErrFileNotExists
 		}
 
-		return nil, err
+		logger.Error().Err(err).Msg("failed to open file")
+		return nil, nil, err
 	}
 	defer f.Close()
 
-	return io.ReadAll(f)
+	fileInfo, error := wt.Filesystem.Stat(relativeFilepath)
+	if error != nil {
+		logger.Error().Err(error).Msg("failed to get file info")
+		return nil, nil, error
+	}
+
+	bytes, err := io.ReadAll(f)
+	return bytes, fileInfo, err
 }
 
 func (g *Git) List(ctx context.Context, repo *git.Repository) ([]string, error) {
