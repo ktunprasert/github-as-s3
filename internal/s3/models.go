@@ -68,7 +68,7 @@ type ContentsType struct {
 	Key          string `xml:"Key"`
 	LastModified string `xml:"LastModified,omitempty"` // Placeholder: "2006-01-02T15:04:05.000Z"
 	ETag         string `xml:"ETag,omitempty"`         // Placeholder: e.g., "\"d41d8cd98f00b204e9800998ecf8427e\""
-	Size         int64  `xml:"Size,omitempty"`         // Placeholder
+	Size         int64  `xml:"Size"`                   // Placeholder
 	StorageClass string `xml:"StorageClass,omitempty"` // e.g., "STANDARD"
 }
 
