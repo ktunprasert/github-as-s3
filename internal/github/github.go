@@ -78,7 +78,7 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string, isPrivate bool) e
 		var ghErrResp *github.ErrorResponse
 		if ok := errors.As(err, &ghErrResp); ok {
 			for _, e := range ghErrResp.Errors {
-				if e.Code == "already_exists" {
+				if e.Code == "custom" && e.Resource == "Repository" && e.Message == "name already exists on this account" {
 					return fmt.Errorf("%w: %s", ErrRepoAlreadyExists, *repoName)
 				}
 			}
