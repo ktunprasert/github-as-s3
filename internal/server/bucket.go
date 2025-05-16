@@ -16,7 +16,7 @@ import (
 func (h *Handler) CreateBucket(c echo.Context) error {
 	bucketName := c.Param("bucket")
 	ctx := c.Request().Context()
-	logger := log.Ctx(ctx)
+	logger := log.Ctx(ctx).With().Str("bucket", bucketName).Str("command", "CreateBucket").Logger()
 
 	if !s3.IsValidBucketName(bucketName) {
 		logger.Warn().Str("bucket", bucketName).Msg("Invalid bucket name format")
@@ -76,7 +76,7 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 func (h *Handler) DeleteBucket(c echo.Context) error {
 	bucketName := c.Param("bucket")
 	ctx := c.Request().Context()
-	logger := log.Ctx(ctx)
+	logger := log.Ctx(ctx).With().Str("bucket", bucketName).Str("command", "DeleteBucket").Logger()
 
 	logger.Debug().Str("bucket", bucketName).Msg("Processing DeleteBucket request")
 
@@ -100,7 +100,7 @@ const githubMaxPerPage = 100
 
 func (h *Handler) ListBuckets(c echo.Context) error {
 	ctx := c.Request().Context()
-	logger := log.Ctx(ctx)
+	logger := log.Ctx(ctx).With().Str("command", "ListBuckets").Logger()
 
 	continuationTokenStr := c.QueryParam("continuation-token")
 	maxBucketsStr := c.QueryParam("max-buckets")
