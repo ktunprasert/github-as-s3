@@ -6,9 +6,12 @@ import (
 	"github-as-s3/internal/github"
 	"github-as-s3/internal/server"
 	"os"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type Application struct {
@@ -53,7 +56,8 @@ func (app *Application) Start() error {
 func (app *Application) Setup() error {
 	// setup routes
 	e := echo.New()
-	e.Use(middleware.Logger())
+	// e.Use(middleware.Logger())
+	e.Use(zerologger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.AddTrailingSlash())
 	e.Use(middleware.RequestID())
@@ -62,6 +66,50 @@ func (app *Application) Setup() error {
 	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git))
 
 	return nil
+}
+
+func zerologger() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			req := c.Request()
+			res := c.Response()
+			start := time.Now()
+
+			loggerBuilder := log.Logger.With()
+			clientRequestID := req.Header.Get(echo.HeaderXRequestID)
+			if clientRequestID != "" {
+				loggerBuilder = loggerBuilder.Str("request_id", clientRequestID)
+			}
+			requestLogger := loggerBuilder.Logger()
+
+			newCtx := requestLogger.WithContext(req.Context())
+			c.SetRequest(req.WithContext(newCtx))
+
+			err := next(c)
+
+			latency := time.Since(start)
+
+			definitiveRequestID := res.Header().Get(echo.HeaderXRequestID)
+
+			var logEvent *zerolog.Event
+			if err != nil {
+				logEvent = requestLogger.Error().Err(err)
+			} else {
+				logEvent = requestLogger.Info()
+			}
+
+			logEvent.Str("method", req.Method).
+				Str("url", req.URL.String()).
+				Int("status", res.Status).
+				Str("remote_ip", req.RemoteAddr).
+				Dur("latency", latency).
+				Str("user_agent", req.UserAgent()).
+				Str("request_id", definitiveRequestID).
+				Msg("request processed")
+
+			return err
+		}
+	}
 }
 
 func getEnv(key, fallback string) string {
