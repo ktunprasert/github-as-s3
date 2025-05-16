@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v72/github"
+	"github.com/rs/zerolog/log"
 )
 
 var requiredPermissions = []string{"repo", "delete_repo"}
@@ -77,6 +78,7 @@ func (gh *GitHub) CreateRepo(ctx context.Context, name string, isPrivate bool) e
 	if err != nil {
 		var ghErrResp *github.ErrorResponse
 		if ok := errors.As(err, &ghErrResp); ok {
+			log.Ctx(ctx).Debug().Any("github_err", ghErrResp).Msg("GitHub API error")
 			for _, e := range ghErrResp.Errors {
 				if e.Code == "custom" && e.Resource == "Repository" && e.Message == "name already exists on this account" {
 					return fmt.Errorf("%w: %s", ErrRepoAlreadyExists, *repoName)
@@ -120,6 +122,14 @@ func (gh *GitHub) DeleteRepo(ctx context.Context, name string) error {
 
 	_, err := gh.client.Repositories.Delete(ctx, gh.owner, *repoName)
 	if err != nil {
+		var ghErrResp *github.ErrorResponse
+		if ok := errors.As(err, &ghErrResp); ok {
+			log.Ctx(ctx).Debug().Any("github_err", ghErrResp).Msg("GitHub API error")
+			if ghErrResp.DocumentationURL == "https://docs.github.com/rest/repos/repos#delete-a-repository" && ghErrResp.Message == "Not Found" {
+				return fmt.Errorf("%w: %s", ErrRepoNotFound, *repoName)
+			}
+		}
+
 		return err
 	}
 

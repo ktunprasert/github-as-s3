@@ -71,7 +71,25 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 }
 
 func (h *Handler) DeleteBucket(c echo.Context) error {
-	return c.String(http.StatusNotImplemented, "DeleteBucket not implemented")
+	bucketName := c.Param("bucket")
+	ctx := c.Request().Context()
+	logger := log.Ctx(ctx)
+
+	logger.Debug().Str("bucket", bucketName).Msg("Processing DeleteBucket request")
+
+	err := h.gh.DeleteRepo(ctx, bucketName)
+	if err != nil {
+		if errors.Is(err, github.ErrRepoNotFound) { // Assuming github.ErrRepoNotFound exists
+			logger.Warn().Str("bucket", bucketName).Msg("Attempted to delete a bucket that does not exist (repository not found)")
+			return h.s3ErrorResponse(c, http.StatusNotFound, "NoSuchBucket", "The specified bucket does not exist.", bucketName)
+		}
+
+		logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to delete GitHub repository")
+		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error deleting the repository. Please try again.", bucketName)
+	}
+
+	logger.Info().Str("bucket", bucketName).Msg("Bucket deleted successfully (GitHub repository deleted)")
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *Handler) ListBuckets(c echo.Context) error {
