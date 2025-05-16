@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github-as-s3/internal/git"
 	"github-as-s3/internal/github"
+	"github-as-s3/internal/server"
 	"os"
 
 	"github.com/labstack/echo/v4"
@@ -58,6 +59,7 @@ func (app *Application) Setup() error {
 	e.Use(middleware.RequestID())
 
 	app.Echo = e
+	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git))
 
 	return nil
 }

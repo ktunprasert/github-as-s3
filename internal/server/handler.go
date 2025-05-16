@@ -15,8 +15,11 @@ type Handler struct {
 }
 
 // NewHandler returns a new Handler instance.
-func NewS3Handler() S3API {
-	return &Handler{}
+func NewS3Handler(gh *github.GitHub, git *git.Git) S3API {
+	return &Handler{
+		gh:  gh,
+		git: git,
+	}
 }
 
 func (h *Handler) CreateBucket(c echo.Context) error {
