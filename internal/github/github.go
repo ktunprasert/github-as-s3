@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github-as-s3/internal/util"
 	"net/http"
@@ -57,17 +58,32 @@ func (gh *GitHub) CheckPermissions(ctx context.Context) (bool, error) {
 	return false, fmt.Errorf("missing required permissions: %v", missing)
 }
 
-func (gh *GitHub) CreateRepo(ctx context.Context, name string) error {
+func (gh *GitHub) CreateRepo(ctx context.Context, name string, isPrivate bool) error {
 	repoName := util.RepoName(name)
+
+	visibility := "public"
+	if isPrivate {
+		visibility = "private"
+	}
 
 	repo, _, err := gh.client.Repositories.Create(ctx, "", &github.Repository{
 		Name: repoName,
 		Owner: &github.User{
 			Name: github.Ptr(gh.owner),
 		},
+		Visibility: &visibility,
 	})
 
 	if err != nil {
+		var ghErrResp *github.ErrorResponse
+		if ok := errors.As(err, &ghErrResp); ok {
+			for _, e := range ghErrResp.Errors {
+				if e.Code == "already_exists" {
+					return fmt.Errorf("%w: %s", ErrRepoAlreadyExists, *repoName)
+				}
+			}
+		}
+
 		return err
 	}
 
