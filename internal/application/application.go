@@ -2,6 +2,8 @@ package application
 
 import (
 	"fmt"
+	"github-as-s3/internal/git"
+	"github-as-s3/internal/github"
 	"os"
 
 	"github.com/labstack/echo/v4"
@@ -14,9 +16,12 @@ type Application struct {
 	Port    string
 	Address string
 	Owner   string
+
+	gh  *github.GitHub
+	git *git.Git
 }
 
-func NewApplication() *Application {
+func newApplication() *Application {
 	return &Application{
 		Port:    getEnv("GHS3_PORT", "8080"),
 		Address: getEnv("GHS3_ADDRESS", "0.0.0.0"),
@@ -26,7 +31,7 @@ func NewApplication() *Application {
 }
 
 func NewApplicationWithOpts(opts ...applicationOpts) *Application {
-	app := NewApplication()
+	app := newApplication()
 	for _, opt := range opts {
 		opt(app)
 	}
