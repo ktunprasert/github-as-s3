@@ -7,6 +7,7 @@ import (
 	"github-as-s3/internal/s3"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -149,7 +150,7 @@ func (h *Handler) ListBuckets(c echo.Context) error {
 			continue
 		}
 		s3ApiBuckets = append(s3ApiBuckets, s3.Bucket{
-			Name:         repo.GetName(),
+			Name:         strings.TrimPrefix(repo.GetName(), "ghs3-"),
 			CreationDate: repo.GetCreatedAt().Time.UTC().Format(time.RFC3339),
 		})
 	}
