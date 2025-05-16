@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github-as-s3/internal/git"
 	"github-as-s3/internal/github"
-	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -76,23 +75,25 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 		isPrivate = true
 	}
 
-	if c.Request().ContentLength > 0 {
-		bodyBytes, err := io.ReadAll(c.Request().Body)
-		if err != nil {
-			logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to read request body for CreateBucketConfiguration")
-			return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error. Please try again.", bucketName)
-		}
-		defer c.Request().Body.Close()
+	// we dont care about body content tbh
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html#API_CreateBucket_RequestBody
+	// if c.Request().ContentLength > 0 {
+	// 	bodyBytes, err := io.ReadAll(c.Request().Body)
+	// 	if err != nil {
+	// 		logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to read request body for CreateBucketConfiguration")
+	// 		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error. Please try again.", bucketName)
+	// 	}
+	// 	defer c.Request().Body.Close()
 
-		if len(bodyBytes) > 0 {
-			var config CreateBucketConfiguration
-			if err := xml.Unmarshal(bodyBytes, &config); err != nil {
-				logger.Warn().Err(err).Str("bucket", bucketName).Msg("Malformed XML in CreateBucketConfiguration")
-				return h.s3ErrorResponse(c, http.StatusBadRequest, "MalformedXML", "The XML you provided was not well-formed or did not validate against our published schema.", bucketName)
-			}
-			logger.Info().Str("bucket", bucketName).Str("locationConstraint", config.LocationConstraint).Msg("Parsed CreateBucketConfiguration (LocationConstraint will be ignored)")
-		}
-	}
+	// 	if len(bodyBytes) > 0 {
+	// 		var config CreateBucketConfiguration
+	// 		if err := xml.Unmarshal(bodyBytes, &config); err != nil {
+	// 			logger.Warn().Err(err).Str("bucket", bucketName).Msg("Malformed XML in CreateBucketConfiguration")
+	// 			return h.s3ErrorResponse(c, http.StatusBadRequest, "MalformedXML", "The XML you provided was not well-formed or did not validate against our published schema.", bucketName)
+	// 		}
+	// 		logger.Info().Str("bucket", bucketName).Str("locationConstraint", config.LocationConstraint).Msg("Parsed CreateBucketConfiguration (LocationConstraint will be ignored)")
+	// 	}
+	// }
 
 	err := h.gh.CreateRepo(ctx, bucketName, isPrivate)
 	if err != nil {
