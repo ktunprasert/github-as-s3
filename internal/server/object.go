@@ -75,7 +75,7 @@ func (h *Handler) PutObject(c echo.Context) error {
 	}
 
 	logger.Info().Str("bucket", bucketName).Str("key", objectKey).Str("versionId", commitSHA).Msg("PutObject.OK")
-	return c.String(http.StatusOK, "Object uploaded successfully. Version ID: "+commitSHA)
+	return c.String(http.StatusOK, "")
 }
 
 func (h *Handler) GetObject(c echo.Context) error {
