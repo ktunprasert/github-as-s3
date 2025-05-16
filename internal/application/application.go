@@ -10,7 +10,6 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -85,27 +84,25 @@ func zerologger() echo.MiddlewareFunc {
 			newCtx := requestLogger.WithContext(req.Context())
 			c.SetRequest(req.WithContext(newCtx))
 
-			err := next(c)
-
-			latency := time.Since(start)
-
-			definitiveRequestID := res.Header().Get(echo.HeaderXRequestID)
-
-			var logEvent *zerolog.Event
-			if err != nil {
-				logEvent = requestLogger.Error().Err(err)
-			} else {
-				logEvent = requestLogger.Info()
-			}
-
-			logEvent.Str("method", req.Method).
+			log.Info().Str("method", req.Method).
 				Str("url", req.URL.String()).
 				Int("status", res.Status).
 				Str("remote_ip", req.RemoteAddr).
-				Dur("latency", latency).
 				Str("user_agent", req.UserAgent()).
-				Str("request_id", definitiveRequestID).
-				Msg("request processed")
+				Msg("request received")
+
+			err := next(c)
+			latency := time.Since(start)
+
+			logEvent := requestLogger.Info()
+			if err != nil {
+				logEvent = requestLogger.Error().Err(err)
+			}
+
+			logEvent.Str("method", req.Method).
+				Dur("latency", latency).
+				Str("request_id", res.Header().Get(echo.HeaderXRequestID)).
+				Msg("request completed")
 
 			return err
 		}
