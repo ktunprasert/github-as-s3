@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/rs/zerolog/log"
 )
@@ -210,6 +212,32 @@ func NewGitAsync(git *Git) *GitAsync {
 	return &GitAsync{git}
 }
 
+func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*object.File, *object.Commit, error) {
+	logger := log.Ctx(ctx).With().Str("component", "gitasync.Head").Str("repo", name).Str("path", filepath).Logger()
+	logger.Debug().Msg("gitasync.Head Start")
+	defer logger.Debug().Msg("gitasync.Head End")
+
+	w, err := ga.ensureWorker(ctx, name)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to ensure worker")
+		return nil, nil, err
+	}
+
+	cmt, err := w.repo.CommitObject(plumbing.Hash([]byte(version)))
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get commit object")
+		return nil, nil, err
+	}
+
+	file, err := cmt.File(filepath)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to get file from commit")
+		return nil, nil, err
+	}
+
+	return file, cmt, nil
+}
+
 func (ga GitAsync) Clone(ctx context.Context, bucket string) (*git.Repository, error) {
 	logger := log.Ctx(ctx).With().Str("component", "gitasync.Clone").Str("bucket", bucket).Logger()
 	logger.Debug().Msg("gitasync.Clone Start")
@@ -336,16 +364,16 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 	}
 
 	repoWorkers.Lock()
-	worker := &RepoWorker{
+	w = &RepoWorker{
 		path:        path,
 		changeQueue: make(chan *ChangeRequest, 100), // Buffered channel
 		repo:        repo,
 		ga:          &ga,
 	}
-	repoWorkers.channels[bucket] = worker
+	repoWorkers.channels[bucket] = w
 	repoWorkers.Unlock()
 
-	go worker.Start(bucket)
+	go w.Start(bucket)
 
 	return w, nil
 }

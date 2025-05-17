@@ -24,15 +24,15 @@ func RegisterRoutes(e *echo.Echo, api Handler, useAsync bool) {
 	e.GET("/", api.ListBuckets)
 	e.HEAD("/:bucket", api.HeadBucket)
 
-	// Object operations
 	if useAsync {
 		e.PUT("/:bucket/*", api.PutObjectAsync)
 		e.DELETE("/:bucket/*", api.DeleteObjectAsync)
+		e.HEAD("/:bucket/*", api.HeadObjectAsync)
 	} else {
 		e.PUT("/:bucket/*", api.PutObject)
 		e.DELETE("/:bucket/*", api.DeleteObject)
+		e.HEAD("/:bucket/*", api.HeadObject)
 	}
 	e.GET("/:bucket/*", api.GetObject)
 	e.GET("/:bucket", api.ListObjectsV2) // Handles ?list-type=2
-	e.HEAD("/:bucket/*", api.HeadObject)
 }

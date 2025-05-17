@@ -4,12 +4,58 @@ import (
 	"errors"
 	"fmt"
 	"github-as-s3/internal/git"
+	"mime"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 )
+
+func (h *Handler) HeadObjectAsync(c echo.Context) error {
+	bucketName := c.Param("bucket")
+	objectKey := c.Param("*")
+	versionID := c.QueryParam("versionId")
+
+	logger := log.Ctx(c.Request().Context()).With().
+		Str("bucket", bucketName).
+		Str("object", objectKey).
+		Str("versionId", versionID).
+		Str("command", "HeadObject").
+		Bool("async", true).
+		Logger()
+
+	logger.Debug().Msg("HeadObject request received")
+	file, commit, err := h.gitasync.Head(c.Request().Context(), bucketName, objectKey, versionID)
+	if err != nil || file == nil || commit == nil {
+		return h.s3ErrorResponse(c, http.StatusNotFound, "NoSuchKey", "The specified key does not exist.", objectKey)
+	}
+
+	lastModified := commit.Committer.When
+
+	logger.Debug().
+		Str("file_sha", file.Hash.String()).
+		Int64("size", file.Size).
+		Str("type", file.Type().String()).
+		Time("last_modified", lastModified).
+		Msg("Object found, setting headers")
+
+	c.Response().Header().Set("ETag", fmt.Sprintf("\"%s\"", file.Hash.String()))
+	c.Response().Header().Set("Content-Length", fmt.Sprintf("%d", file.Size))
+
+	c.Response().Header().Set("x-amz-version-id", commit.Hash.String())
+
+	contentType := mime.TypeByExtension(path.Ext(objectKey))
+	if contentType == "" {
+		contentType = "application/octet-stream" // S3 default
+	}
+	c.Response().Header().Set("Content-Type", contentType)
+	c.Response().Header().Set("Accept-Ranges", "bytes") // Common for S3 objects
+	c.Response().Header().Set("Last-Modified", lastModified.Format(http.TimeFormat))
+
+	return c.NoContent(http.StatusOK)
+}
 
 func (h *Handler) PutObjectAsync(c echo.Context) error {
 	ctx := c.Request().Context()
