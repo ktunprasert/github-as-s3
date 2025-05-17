@@ -60,6 +60,7 @@ func (app *Application) Setup() error {
 	e.Use(middleware.Recover())
 	e.Use(middleware.AddTrailingSlash())
 	e.Use(middleware.RequestID())
+	e.Use(middleware.BodyLimit("5M"))
 
 	app.Echo = e
 	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git))
