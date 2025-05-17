@@ -360,7 +360,7 @@ func (g *Git) List(ctx context.Context, repo *git.Repository) (map[string]os.Fil
 		}
 
 		switch true {
-		case strings.HasPrefix(rel, ".git"):
+		case rel == ".git":
 			slog.Debug().Str("path", path).Str("rel", rel).Msg("skipping dir")
 			return filepath.SkipDir
 		case strings.HasPrefix(rel, ".ghs3"), rel == ".":
