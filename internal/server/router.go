@@ -34,5 +34,8 @@ func RegisterRoutes(e *echo.Echo, api Handler) {
 		e.HEAD("/:bucket/*", api.HeadObject)
 	}
 	e.GET("/:bucket/*", api.GetObject)
-	e.GET("/:bucket", api.ListObjectsV2) // Handles ?list-type=2
+	e.GET("/:bucket", api.ListObjectsV2)
+	e.GET("/:bucket/", api.ListObjectsV2) // Handles ?list-type=2
+
+	e.Any("/*", api.CatchAllHandler)
 }
