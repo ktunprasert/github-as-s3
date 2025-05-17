@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog/log"
 )
@@ -261,7 +262,15 @@ func (h *Handler) ListObjectsV2(c echo.Context) error {
 		Str("startAfter (for_response_echo)", requestStartAfter).
 		Msg("ListObjectsV2.Start - returning all results")
 
-	repo, err := h.git.Clone(ctx, bucketName)
+	var repo *gogit.Repository
+	var err error
+
+	if !h.async {
+		repo, err = h.git.Clone(ctx, bucketName)
+	} else {
+		repo, err = h.gitasync.Clone(ctx, bucketName)
+	}
+
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to clone repository")
 		return c.String(http.StatusNotFound, fmt.Sprintf("Bucket '%s' not found", bucketName))

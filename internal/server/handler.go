@@ -21,14 +21,16 @@ type Handler struct {
 	gh       *github.GitHub
 	git      *git.Git
 	gitasync *git.GitAsync
+	async    bool
 }
 
 // NewHandler returns a new Handler instance.
-func NewS3Handler(gh *github.GitHub, g *git.Git) Handler {
+func NewS3Handler(gh *github.GitHub, g *git.Git, async bool) Handler {
 	return Handler{
 		gh:       gh,
 		git:      g,
 		gitasync: git.NewGitAsync(g),
+		async:    async,
 	}
 }
 

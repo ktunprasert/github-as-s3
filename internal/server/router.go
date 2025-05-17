@@ -17,14 +17,14 @@ type S3API interface {
 }
 
 // RegisterRoutes registers S3-compatible routes with the Echo router.
-func RegisterRoutes(e *echo.Echo, api Handler, useAsync bool) {
+func RegisterRoutes(e *echo.Echo, api Handler) {
 	// Bucket operations
 	e.PUT("/:bucket", api.CreateBucket)
 	e.DELETE("/:bucket", api.DeleteBucket)
 	e.GET("/", api.ListBuckets)
 	e.HEAD("/:bucket", api.HeadBucket)
 
-	if useAsync {
+	if api.async {
 		e.PUT("/:bucket/*", api.PutObjectAsync)
 		e.DELETE("/:bucket/*", api.DeleteObjectAsync)
 		e.HEAD("/:bucket/*", api.HeadObjectAsync)

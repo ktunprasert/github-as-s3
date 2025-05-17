@@ -36,24 +36,24 @@ func WithAddress(address string) applicationOpts {
 
 func WithDefaultGithub() applicationOpts {
 	return func(a *Application) {
-		a.gh = github.NewGitHub(a.Token, a.Owner)
+		a.GH = github.NewGitHub(a.Token, a.Owner)
 	}
 }
 
 func WithDefaultGit() applicationOpts {
 	return func(a *Application) {
-		a.git = git.NewGit(a.Token, a.Owner)
+		a.Git = git.NewGit(a.Token, a.Owner)
 	}
 }
 
 func WithGitHub(gh *github.GitHub) applicationOpts {
 	return func(a *Application) {
-		a.gh = gh
+		a.GH = gh
 	}
 }
 
 func WithGit(g *git.Git) applicationOpts {
 	return func(a *Application) {
-		a.git = g
+		a.Git = g
 	}
 }

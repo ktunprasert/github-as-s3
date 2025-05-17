@@ -20,8 +20,8 @@ type Application struct {
 	Address string
 	Owner   string
 
-	gh  *github.GitHub
-	git *git.Git
+	GH  *github.GitHub
+	Git *git.Git
 }
 
 func newApplication() *Application {
@@ -63,7 +63,7 @@ func (app *Application) Setup() error {
 	e.Use(middleware.BodyLimit("5M"))
 
 	app.Echo = e
-	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git), true)
+	server.RegisterRoutes(e, server.NewS3Handler(app.GH, app.Git, true))
 
 	return nil
 }

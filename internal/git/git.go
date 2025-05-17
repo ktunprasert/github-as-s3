@@ -44,6 +44,15 @@ func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository,
 
 	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
 
+	var err error
+	if path == "" {
+		path, err = os.MkdirTemp("", "ghs3-"+name)
+		if err != nil {
+			return nil, err
+		}
+		slog.Debug().Str("path", path).Msg("Temp directory created for Clone")
+	}
+
 	repo, err := git.PlainInit(path, false)
 	if err != nil {
 		return nil, err
