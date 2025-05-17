@@ -151,7 +151,7 @@ func (w *RepoWorker) Start(bucket string) {
 				continue
 			}
 
-			slog.Info().Any("hash", hash).Msg("change completed")
+			slog.Info().Any("hash", hash.String()).Msg("change completed")
 
 			if err == nil {
 				debounceTimer.Reset(500 * time.Millisecond) // Adjust debounce interval as needed
@@ -220,6 +220,7 @@ func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*o
 	logger := log.Ctx(ctx).With().Str("component", "gitasync.Head").Str("repo", name).Str("path", filepath).Logger()
 	logger.Debug().Msg("gitasync.Head Start")
 	defer logger.Debug().Msg("gitasync.Head End")
+	var err error
 
 	w, err := ga.ensureWorker(ctx, name)
 	if err != nil {
@@ -228,28 +229,64 @@ func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*o
 	}
 
 	var cmt *object.Commit
-	if version != "" {
-		cmt, err = w.repo.CommitObject(plumbing.Hash([]byte(version)))
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to get commit object")
+	var file *object.File
+
+	// Attempt to get the file, retry once if not found initially
+	for i := 0; i < 2; i++ { // Try up to 2 times
+		if version != "" {
+			// ... (logic for specific version) ...
+			commitHash := plumbing.NewHash(version)
+			// ...
+			cmt, err = w.repo.CommitObject(commitHash)
+			// ...
+		} else {
+			// Get current HEAD
+			headRef, errRef := w.repo.Head()
+			if errRef != nil {
+				logger.Error().Err(errRef).Msg("Failed to get HEAD reference")
+				return nil, nil, errRef
+			}
+			cmt, err = w.repo.CommitObject(headRef.Hash())
+			if err != nil {
+				logger.Error().Err(err).Str("head_hash", headRef.Hash().String()).Msg("Failed to get commit object for HEAD")
+				return nil, nil, err
+			}
+			logger.Debug().Str("commit_hash_for_head", cmt.Hash.String()).Msg("Commit (latest HEAD) being checked by Head")
+		}
+
+		if err != nil { // Error getting the commit itself
 			return nil, nil, err
 		}
-	} else {
-		cmts, err := w.repo.CommitObjects()
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to get commit objects")
-			return nil, nil, err
+
+		file, err = cmt.File(filepath)
+		if err == nil {
+			break // File found, exit loop
 		}
-		cmt, err = cmts.Next()
-		if err != nil {
-			logger.Error().Err(err).Msg("Failed to get next commit object")
-			return nil, nil, err
+
+		if errors.Is(err, object.ErrFileNotFound) {
+			if i == 0 { // If first attempt and file not found
+				logger.Warn().Str("filepath", filepath).Str("commit_hash_checked", cmt.Hash.String()).Msg("File not found on first attempt, retrying shortly...")
+				time.Sleep(500 * time.Millisecond) // Small delay
+				// Potentially force a re-read of refs, though go-git might not have an explicit API for this.
+				// The delay itself is often enough for filesystem changes to propagate.
+				continue
+			}
+			// If still not found on second attempt, log tree and return error
+			tree, treeErr := cmt.Tree()
+			if treeErr == nil {
+				logger.Warn().Str("filepath_searched", filepath).Msg("File not found in commit after retry. Listing tree entries:")
+				tree.Files().ForEach(func(f *object.File) error {
+					logger.Warn().Str("file_in_tree", f.Name).Msg("File present in commit tree")
+					return nil
+				})
+			}
 		}
+		// For other errors, return immediately
+		return nil, nil, err
 	}
 
-	file, err := cmt.File(filepath)
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get file from commit")
+	if err != nil { // If loop finished due to error (e.g., file still not found)
+		logger.Error().Err(err).Str("filepath", filepath).Str("commit_hash_checked", cmt.Hash.String()).Msg("Failed to get file from commit after retries")
 		return nil, nil, err
 	}
 
