@@ -142,7 +142,7 @@ func (w *RepoWorker) Start(bucket string) {
 				}
 			}
 
-			hash, err := wt.Commit(change.CommitMessage, &git.CommitOptions{Author: w.ga.signature()})
+			hash, err := wt.Commit("[GHS3] "+change.CommitMessage, &git.CommitOptions{Author: w.ga.signature()})
 			if err != nil && !errors.Is(err, git.ErrEmptyCommit) {
 				slog.Error().Err(err).Msg("Failed to commit file")
 				// try again
