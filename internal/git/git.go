@@ -39,16 +39,11 @@ func (g *Git) SetSkipPush(skipPush bool) {
 
 // Used when we create a new repo via GitHub but
 // it's empty
-func (g *Git) InitRepo(ctx context.Context, name string) (*git.Repository, error) {
+func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository, error) {
 	slog := util.LogCtx(ctx, "git.InitRepo").With().Str("component", "git.InitRepo").Logger()
 
 	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
-	path, err := os.MkdirTemp("", "ghs3-"+name)
-	if err != nil {
-		return nil, err
-	}
 
-	slog.Debug().Str("path", path).Msg("Temp directory created for InitRepo")
 	repo, err := git.PlainInit(path, false)
 	if err != nil {
 		return nil, err
@@ -115,7 +110,7 @@ func (g *Git) Clone(ctx context.Context, name string) (*git.Repository, error) {
 	if err != nil {
 		if errors.Is(err, transport.ErrEmptyRemoteRepository) {
 			slog.Debug().Str("repo_name", name).Msg("Remote repository is empty, calling InitRepo")
-			repo, err = g.InitRepo(ctx, name)
+			repo, err = g.InitRepo(ctx, name, path)
 			if err != nil {
 				return nil, err
 			}

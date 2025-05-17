@@ -172,12 +172,10 @@ func (w *RepoWorker) Start(bucket string) {
 				continue
 			}
 
-			w.Lock()
 			err = remote.Push(&git.PushOptions{
 				RemoteName: consts.Origin,
 				Auth:       w.ga.auth(),
 			})
-			w.Unlock()
 
 			if err != nil {
 				if errors.Is(err, git.NoErrAlreadyUpToDate) {
@@ -344,56 +342,80 @@ func (ga GitAsync) Delete(ctx context.Context, repo *git.Repository, bucket, rel
 
 func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker, error) {
 	repoWorkers.RLock()
-	if w, exists := repoWorkers.channels[bucket]; exists {
-		repoWorkers.RUnlock()
-
-		// if !w.isRunning {
-		// 	w.Start(bucket)
-		// }
-		return w, nil
-	}
+	w, exists := repoWorkers.channels[bucket]
 	repoWorkers.RUnlock()
 
+	if exists {
+		// Optional: Check if w.isRunning and restart if necessary,
+		// though the current Start logic seems to run indefinitely until an error.
+		return w, nil
+	}
+
+	// Worker doesn't exist, acquire full lock to create it
+	repoWorkers.Lock()
+	defer repoWorkers.Unlock() // Ensure lock is released
+
+	// Re-check: Another goroutine might have created it while we were waiting for the lock
+	if w, exists = repoWorkers.channels[bucket]; exists {
+		return w, nil
+	}
+
 	logger := log.Ctx(ctx).With().Str("component", "gitasync.EnsureWorker").Str("bucket", bucket).Logger()
-	logger.Debug().Msg("gitasync.EnsureWorker Start")
+	logger.Debug().Msg("gitasync.EnsureWorker Start - Creating new worker")
 
-	var w *RepoWorker
-
-	path, err := os.MkdirTemp("", "ghs3-"+bucket)
+	path, err := os.MkdirTemp("", "ghs3-"+bucket+"-") // Added a trailing dash for clarity
 	if err != nil {
+		logger.Error().Err(err).Msg("Failed to create temp directory")
 		return nil, err
 	}
 
-	repo, err := git.PlainClone(path, false, &git.CloneOptions{
+	logger.Debug().Str("path", path).Msg("Temp directory created for Clone")
+
+	repo, err := git.PlainCloneContext(ctx, path, false, &git.CloneOptions{
 		URL:           util.GithubURL(ga.owner, bucket),
 		Auth:          ga.auth(),
 		RemoteName:    consts.Origin,
 		ReferenceName: consts.Master,
 		SingleBranch:  true,
+		Progress:      nil, // Set to os.Stdout for debugging if needed
+		// Consider adding Depth: 1 if full history isn't strictly needed for worker operations
 	})
-	if err != nil {
-		if !errors.Is(err, transport.ErrEmptyRemoteRepository) {
-			return nil, err
-		}
 
-		log.Debug().Str("repo_name", bucket).Msg("Remote repository is empty, calling InitRepo")
-		repo, err = ga.InitRepo(ctx, bucket)
-		if err != nil {
+	if err != nil {
+		// If clone fails, attempt to remove the temp directory
+		_ = os.RemoveAll(path)
+		if errors.Is(err, transport.ErrEmptyRemoteRepository) {
+			logger.Debug().Msg("Remote repository is empty, calling InitRepo")
+			initializedRepo, initErr := ga.InitRepo(ctx, bucket, path) // This might need to use the 'path'
+			if initErr != nil {
+				logger.Error().Err(initErr).Msg("Failed to init repo after empty remote error")
+				return nil, initErr
+			}
+			repo = initializedRepo
+		} else if errors.Is(err, git.ErrRepositoryAlreadyExists) {
+			logger.Warn().Err(err).Msg("Repository already exists, attempting to open")
+			repo, err = git.PlainOpen(path)
+			if err != nil {
+				logger.Error().Err(err).Msg("Failed to open existing repository")
+				return nil, err
+			}
+		} else {
+			logger.Error().Err(err).Msg("Failed to clone repository")
 			return nil, err
 		}
 	}
 
-	repoWorkers.Lock()
 	w = &RepoWorker{
 		path:        path,
 		changeQueue: make(chan *ChangeRequest, 100), // Buffered channel
 		repo:        repo,
 		ga:          &ga,
+		// isRunning: true, // Set isRunning when Start is actually running
 	}
 	repoWorkers.channels[bucket] = w
-	repoWorkers.Unlock()
 
-	go w.Start(bucket)
+	go w.Start(bucket) // Start the worker goroutine
 
+	logger.Info().Msg("New RepoWorker created and started")
 	return w, nil
 }
