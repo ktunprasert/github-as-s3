@@ -121,7 +121,7 @@ func (w *RepoWorker) Start(bucket string) {
 				if err != nil {
 					var pathErr *os.PathError
 					if errors.As(err, &pathErr) {
-						slog.Error().Err(ErrFileNotExists).Msg("Skipping delete, file does not exist")
+						slog.Error().AnErr("path_err", pathErr).Msg("Skipping delete, file does not exist")
 						change.done <- ErrFileNotExists
 						continue
 					}
