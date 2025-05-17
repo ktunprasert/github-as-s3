@@ -145,13 +145,6 @@ func (g *Git) PutRaw(ctx context.Context, repo *git.Repository, key string, src 
 		return err
 	}
 
-	path := wt.Filesystem.Root()
-	if path == "" {
-		slog.Error().Msg("worktree path is empty")
-		return errors.New("path is empty")
-	}
-	slog.Debug().Str("path", path).Msg("worktree path resolved")
-
 	dst, err := wt.Filesystem.Create(key)
 	if err != nil {
 		slog.Error().Err(err).Str("filename", key).Msg("failed to create destination file")
