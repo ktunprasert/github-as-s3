@@ -229,10 +229,24 @@ func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*o
 		return nil, nil, err
 	}
 
-	cmt, err := w.repo.CommitObject(plumbing.Hash([]byte(version)))
-	if err != nil {
-		logger.Error().Err(err).Msg("Failed to get commit object")
-		return nil, nil, err
+	var cmt *object.Commit
+	if version != "" {
+		cmt, err = w.repo.CommitObject(plumbing.Hash([]byte(version)))
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to get commit object")
+			return nil, nil, err
+		}
+	} else {
+		cmts, err := w.repo.CommitObjects()
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to get commit objects")
+			return nil, nil, err
+		}
+		cmt, err = cmts.Next()
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to get next commit object")
+			return nil, nil, err
+		}
 	}
 
 	file, err := cmt.File(filepath)
