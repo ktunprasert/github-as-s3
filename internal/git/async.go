@@ -29,6 +29,7 @@ type ChangeRequest struct {
 type RepoWorker struct {
 	sync.RWMutex
 	// ctx         context.Context
+	isRunning   bool
 	changeQueue chan *ChangeRequest
 	path        string
 	repo        *git.Repository
@@ -46,12 +47,12 @@ func (w *RepoWorker) Start(bucket string) {
 
 	tries := 0
 
-	defer func() {
-		logger.Info().Msg("Removing from workers map")
-		repoWorkers.Lock()
-		defer repoWorkers.Unlock()
-		delete(repoWorkers.channels, bucket)
-	}()
+	// defer func() {
+	// 	logger.Info().Msg("Removing from workers map")
+	// 	repoWorkers.Lock()
+	// 	defer repoWorkers.Unlock()
+	// 	delete(repoWorkers.channels, bucket)
+	// }()
 
 	wt, err := w.repo.Worktree()
 	if err != nil {
@@ -134,7 +135,7 @@ func (w *RepoWorker) Start(bucket string) {
 			}
 
 			hash, err := wt.Commit(change.CommitMessage, &git.CommitOptions{Author: w.ga.signature()})
-			if err != nil {
+			if err != nil && !errors.Is(err, git.ErrEmptyCommit) {
 				slog.Error().Err(err).Msg("Failed to commit file")
 				// try again
 				change.tries++
@@ -142,9 +143,10 @@ func (w *RepoWorker) Start(bucket string) {
 				continue
 			}
 
-			slog.Info().Any("hash", hash).Msg("File added and committed")
+			slog.Info().Any("hash", hash).Msg("change completed")
 
 			debounceTimer.Reset(500 * time.Millisecond) // Adjust debounce interval as needed
+			change.ok <- true
 
 		case <-debounceTimer.C:
 			if tries > 3 {
@@ -293,6 +295,10 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 	repoWorkers.RLock()
 	if w, exists := repoWorkers.channels[bucket]; exists {
 		repoWorkers.RUnlock()
+
+		// if !w.isRunning {
+		// 	w.Start(bucket)
+		// }
 		return w, nil
 	}
 	repoWorkers.RUnlock()
@@ -308,10 +314,11 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 	}
 
 	repo, err := git.PlainClone(path, false, &git.CloneOptions{
-		URL:          util.GithubURL(ga.owner, bucket),
-		Auth:         ga.auth(),
-		RemoteName:   consts.Master,
-		SingleBranch: true,
+		URL:           util.GithubURL(ga.owner, bucket),
+		Auth:          ga.auth(),
+		RemoteName:    consts.Origin,
+		ReferenceName: consts.Master,
+		SingleBranch:  true,
 	})
 	if err != nil {
 		if !errors.Is(err, transport.ErrEmptyRemoteRepository) {
