@@ -42,9 +42,10 @@ func (g *Git) SetSkipPush(skipPush bool) {
 func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository, error) {
 	slog := util.LogCtx(ctx, "git.InitRepo").With().Str("component", "git.InitRepo").Logger()
 
-	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
-
 	var err error
+	slog.Debug().Str("repo_name", name).Msg("git.InitRepo.Start")
+	defer slog.Error().Str("name", name).Str("path", path).AnErr("init_repo_error", err).Msg("git.InitRepo.Error")
+
 	if path == "" {
 		path, err = os.MkdirTemp("", "ghs3-"+name)
 		if err != nil {
@@ -59,7 +60,7 @@ func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository,
 	}
 
 	remote, err := repo.CreateRemote(&config.RemoteConfig{
-		Name: "origin",
+		Name: consts.Origin,
 		URLs: []string{util.GithubURL(g.owner, name)},
 	})
 	if err != nil {
@@ -90,7 +91,7 @@ func (g *Git) InitRepo(ctx context.Context, name, path string) (*git.Repository,
 		return nil, err
 	}
 
-	err = g.push(ctx, remote, util.GithubURL(g.owner, name))
+	err = g.push(ctx, remote, name)
 	if err != nil {
 		return nil, err
 	}
@@ -439,12 +440,14 @@ func (g *Git) signature() *object.Signature {
 }
 
 func (g *Git) push(ctx context.Context, remote *git.Remote, reponame string) error {
+	slog := util.LogCtx(ctx, "git.push").With().Str("component", "git.push").Logger()
 	if g.skipPush {
 		log.Ctx(ctx).Debug().Msg("skipping push")
 		return nil
 	}
 
 	if remote == nil {
+		slog.Error().Msg("remote is nil")
 		return errors.New("remote is nil")
 	}
 
@@ -459,6 +462,7 @@ func (g *Git) push(ctx context.Context, remote *git.Remote, reponame string) err
 
 	err := remote.PushContext(ctx, pushOpts)
 	if err != nil {
+		slog.Error().Err(err).Any("pushOpts", pushOpts).Msg("failed to push to remote")
 		return err
 	}
 
