@@ -18,15 +18,17 @@ import (
 
 // Handler implements the S3API interface.
 type Handler struct {
-	gh  *github.GitHub
-	git *git.Git
+	gh       *github.GitHub
+	git      *git.Git
+	gitasync *git.GitAsync
 }
 
 // NewHandler returns a new Handler instance.
-func NewS3Handler(gh *github.GitHub, git *git.Git) S3API {
-	return &Handler{
-		gh:  gh,
-		git: git,
+func NewS3Handler(gh *github.GitHub, g *git.Git) Handler {
+	return Handler{
+		gh:       gh,
+		git:      g,
+		gitasync: git.NewGitAsync(g),
 	}
 }
 

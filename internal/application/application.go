@@ -63,7 +63,7 @@ func (app *Application) Setup() error {
 	e.Use(middleware.BodyLimit("5M"))
 
 	app.Echo = e
-	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git))
+	server.RegisterRoutes(e, server.NewS3Handler(app.gh, app.git), true)
 
 	return nil
 }

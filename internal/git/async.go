@@ -22,7 +22,7 @@ type ChangeRequest struct {
 	Content       []byte // Content for PUT operations, or nil for DELETE
 	CommitMessage string // Pre-formatted commit message for this change
 	// You might also need a way to pass any specific S3 headers if your Git mapping requires them.
-	done  chan bool
+	ok    chan bool
 	tries int
 }
 
@@ -75,8 +75,8 @@ func (w *RepoWorker) Start(bucket string) {
 
 			if change.tries > 3 {
 				logger.Error().Msg("Too many attempts, bumping from queue")
-				change.done <- false
-				close(change.done)
+				change.ok <- false
+				close(change.ok)
 				continue
 			}
 
@@ -221,6 +221,7 @@ func (ga GitAsync) Clone(ctx context.Context, bucket string) (*git.Repository, e
 func (ga GitAsync) PutRaw(ctx context.Context, repo *git.Repository, bucket, key string, dst io.ReadCloser) error {
 	logger := log.Ctx(ctx).With().Str("component", "gitasync.PutRaw").Str("bucket", bucket).Str("key", key).Logger()
 	logger.Debug().Msg("gitasync.PutRaw Start")
+	defer logger.Debug().Msg("gitasync.PutRaw End")
 
 	if repo == nil {
 		logger.Error().Msg("repo is nil")
@@ -232,18 +233,25 @@ func (ga GitAsync) PutRaw(ctx context.Context, repo *git.Repository, bucket, key
 		return err
 	}
 
+	fileContent, err := io.ReadAll(dst)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to read file content")
+		return err
+	}
+
 	change := ChangeRequest{
 		ctx:           ctx,
 		ObjectKey:     key,
+		Content:       fileContent,
 		Type:          consts.Put,
 		CommitMessage: "Put file " + key,
-		done:          make(chan bool),
+		ok:            make(chan bool),
 	}
 
 	worker.changeQueue <- &change
-	<-change.done
-
-	logger.Debug().Msg("gitasync.PutRaw End")
+	if ok := <-change.ok; !ok {
+		return errors.New("failed to process change request")
+	}
 
 	return nil
 }
@@ -268,11 +276,13 @@ func (ga GitAsync) Delete(ctx context.Context, repo *git.Repository, bucket, rel
 		ObjectKey:     relativeFilepath,
 		Type:          consts.Delete,
 		CommitMessage: "Delete file " + relativeFilepath,
-		done:          make(chan bool),
+		ok:            make(chan bool),
 	}
 
 	worker.changeQueue <- &change
-	<-change.done
+	if ok := <-change.ok; !ok {
+		return errors.New("failed to process change request")
+	}
 
 	logger.Debug().Msg("gitasync.Delete End")
 

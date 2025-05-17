@@ -28,8 +28,6 @@ func (h *Handler) PutObject(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Bucket name is missing")
 	}
 
-	logger = logger.With().Str("bucket", bucketName).Str("key", objectKey).Logger()
-
 	objectKey := c.Param("*")
 	if objectKey == "" {
 		logger.Warn().Msg("Object key is missing")
@@ -42,6 +40,7 @@ func (h *Handler) PutObject(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Object key is missing")
 	}
 
+	logger = logger.With().Str("bucket", bucketName).Str("key", objectKey).Logger()
 	logger.Debug().Msg("Parsed parameters")
 
 	repo, err := h.git.Clone(ctx, bucketName)
