@@ -28,7 +28,7 @@ func (h *Handler) PutObject(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Bucket name is missing")
 	}
 
-	logger = logger.With().Str("bucket", bucketName).Logger()
+	logger = logger.With().Str("bucket", bucketName).Str("key", objectKey).Logger()
 
 	objectKey := c.Param("*")
 	if objectKey == "" {
@@ -42,21 +42,21 @@ func (h *Handler) PutObject(c echo.Context) error {
 		return c.String(http.StatusBadRequest, "Object key is missing")
 	}
 
-	logger.Debug().Str("bucket", bucketName).Str("key", objectKey).Msg("Parsed parameters")
+	logger.Debug().Msg("Parsed parameters")
 
 	repo, err := h.git.Clone(ctx, bucketName)
 	if err != nil {
 		logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to clone repository")
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("Failed to clone repository '%s': %v", bucketName, err))
 	}
-	logger.Debug().Str("bucket", bucketName).Msg("Repository cloned successfully")
+	logger.Debug().Msg("Repository cloned successfully")
 
 	err = h.git.PutRaw(ctx, repo, objectKey, c.Request().Body)
 	if err != nil {
 		logger.Error().Err(err).Str("key", objectKey).Msg("Failed to put object into repository")
 		return c.String(http.StatusInternalServerError, fmt.Sprintf("Failed to put object '%s': %v", objectKey, err))
 	}
-	logger.Debug().Str("key", objectKey).Msg("Object put into repository successfully")
+	logger.Debug().Msg("Object put into repository successfully")
 
 	var commitSHA string
 	headRef, err := repo.Head()
@@ -74,7 +74,7 @@ func (h *Handler) PutObject(c echo.Context) error {
 		c.Response().Header().Set("x-amz-version-id", commitSHA)
 	}
 
-	logger.Info().Str("bucket", bucketName).Str("key", objectKey).Str("versionId", commitSHA).Msg("PutObject.OK")
+	logger.Info().Str("versionId", commitSHA).Msg("PutObject.OK")
 	return c.String(http.StatusOK, "")
 }
 
