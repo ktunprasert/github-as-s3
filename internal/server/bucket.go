@@ -69,6 +69,12 @@ func (h *Handler) CreateBucket(c echo.Context) error {
 		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We encountered an internal error creating the repository. Please try again.", bucketName)
 	}
 
+	_, err = h.git.InitRepo(ctx, bucketName)
+	if err != nil {
+		logger.Error().Err(err).Str("bucket", bucketName).Msg("Failed to initialize GitHub repository")
+		return h.s3ErrorResponse(c, http.StatusInternalServerError, "InternalError", "We failed to initialise your bucket please try again", bucketName)
+	}
+
 	c.Response().Header().Set("Location", "/"+bucketName)
 	logger.Info().Str("bucket", bucketName).Bool("isPrivate", isPrivate).Msg("Bucket created successfully (GitHub repository created)")
 	return c.NoContent(http.StatusOK)
