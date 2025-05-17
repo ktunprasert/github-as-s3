@@ -234,13 +234,9 @@ func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*o
 	// Attempt to get the file, retry once if not found initially
 	for i := 0; i < 2; i++ { // Try up to 2 times
 		if version != "" {
-			// ... (logic for specific version) ...
 			commitHash := plumbing.NewHash(version)
-			// ...
 			cmt, err = w.repo.CommitObject(commitHash)
-			// ...
 		} else {
-			// Get current HEAD
 			headRef, errRef := w.repo.Head()
 			if errRef != nil {
 				logger.Error().Err(errRef).Msg("Failed to get HEAD reference")
@@ -275,7 +271,7 @@ func (ga GitAsync) Head(ctx context.Context, name, filepath, version string) (*o
 			tree, treeErr := cmt.Tree()
 			if treeErr == nil {
 				logger.Warn().Str("filepath_searched", filepath).Msg("File not found in commit after retry. Listing tree entries:")
-				tree.Files().ForEach(func(f *object.File) error {
+				_ = tree.Files().ForEach(func(f *object.File) error {
 					logger.Warn().Str("file_in_tree", f.Name).Msg("File present in commit tree")
 					return nil
 				})
