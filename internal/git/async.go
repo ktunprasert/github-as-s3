@@ -145,7 +145,10 @@ func (w *RepoWorker) Start(bucket string) {
 
 			slog.Info().Any("hash", hash).Msg("change completed")
 
-			debounceTimer.Reset(500 * time.Millisecond) // Adjust debounce interval as needed
+			if err == nil {
+				debounceTimer.Reset(500 * time.Millisecond) // Adjust debounce interval as needed
+			}
+
 			change.ok <- true
 
 		case <-debounceTimer.C:
