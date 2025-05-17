@@ -24,7 +24,7 @@ type ChangeRequest struct {
 	Content       []byte // Content for PUT operations, or nil for DELETE
 	CommitMessage string // Pre-formatted commit message for this change
 	// You might also need a way to pass any specific S3 headers if your Git mapping requires them.
-	ok    chan bool
+	done  chan error
 	tries int
 }
 
@@ -78,8 +78,8 @@ func (w *RepoWorker) Start(bucket string) {
 
 			if change.tries > 3 {
 				logger.Error().Msg("Too many attempts, bumping from queue")
-				change.ok <- false
-				close(change.ok)
+				change.done <- ErrTooManyAttempts
+				close(change.done)
 				continue
 			}
 
@@ -119,7 +119,13 @@ func (w *RepoWorker) Start(bucket string) {
 			case consts.Delete:
 				err := wt.Filesystem.Remove(change.ObjectKey)
 				if err != nil {
-					slog.Error().Err(err).Msg("Failed to delete file")
+					var pathErr *os.PathError
+					if errors.As(err, &pathErr) {
+						slog.Error().Err(ErrFileNotExists).Msg("Skipping delete, file does not exist")
+						change.done <- ErrFileNotExists
+						continue
+					}
+					slog.Error().Err(err).AnErr("err_serialised", err).Msg("Failed to delete file")
 					// try again
 					change.tries++
 					w.changeQueue <- change
@@ -151,7 +157,7 @@ func (w *RepoWorker) Start(bucket string) {
 				debounceTimer.Reset(500 * time.Millisecond) // Adjust debounce interval as needed
 			}
 
-			change.ok <- true
+			change.done <- nil
 
 		case <-debounceTimer.C:
 			if tries > 3 {
@@ -278,12 +284,12 @@ func (ga GitAsync) PutRaw(ctx context.Context, repo *git.Repository, bucket, key
 		Content:       fileContent,
 		Type:          consts.Put,
 		CommitMessage: "Put file " + key,
-		ok:            make(chan bool),
+		done:          make(chan error),
 	}
 
 	worker.changeQueue <- &change
-	if ok := <-change.ok; !ok {
-		return errors.New("failed to process change request")
+	if err := <-change.done; err != nil {
+		return err
 	}
 
 	return nil
@@ -309,12 +315,12 @@ func (ga GitAsync) Delete(ctx context.Context, repo *git.Repository, bucket, rel
 		ObjectKey:     relativeFilepath,
 		Type:          consts.Delete,
 		CommitMessage: "Delete file " + relativeFilepath,
-		ok:            make(chan bool),
+		done:          make(chan error),
 	}
 
 	worker.changeQueue <- &change
-	if ok := <-change.ok; !ok {
-		return errors.New("failed to process change request")
+	if err := <-change.done; err != nil {
+		return err
 	}
 
 	logger.Debug().Msg("gitasync.Delete End")
