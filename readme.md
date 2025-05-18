@@ -22,6 +22,8 @@ The following routes are implemented
 
 # Getting started
 
+## Run it with Go
+
 ```bash
 cp .env.example .env
 go run ./cmd/cli/
@@ -40,6 +42,20 @@ GHS3_ADDRESS=
 ```
 
 The token requires 2 permissions: `repo`, `delete_repo`
+
+## Run it with Docker
+
+```bash
+docker build . -t ghs3
+docker run --rm -t ghs3 --env "GITHUB_OWNER=ktunprasert" --env "GITHUB_TOKEN=$TOKEN"
+```
+
+## Run it with docker-compose
+
+```bash
+# configure your compose file with proper environment values
+docker-compose up -d
+```
 
 ## Development
 
