@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  ghs3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # If you want the container to restart automatically, uncomment the line below
+    restart: unless-stopped
+    ports:
+      - "8080:${GHS3_PORT:-8080}"
+    # if you want to use it with .env
+    env_file:
+      - .env
+    # if you want to set manually
+    # environment:
+    #   # Required
+    #   GITHUB_TOKEN: ${GITHUB_TOKEN} # Your GitHub personal access token
+    #   GITHUB_OWNER: ${GITHUB_OWNER} # The GitHub username or organization
+    #   # Optional
+    #   GHS3_PORT: ${GHS3_PORT:-8080} # Port for the service inside the container
+    #   GHS3_ADDRESS: ${GHS3_ADDRESS:-0.0.0.0} # Address to bind to inside the container
