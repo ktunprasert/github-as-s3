@@ -37,8 +37,13 @@ GITHUB_TOKEN=
 GITHUB_OWNER=ktunprasert
 
 # optional
+# hosting related
 GHS3_PORT=
 GHS3_ADDRESS=
+# committer's information
+# these are the defaults defined in application.go
+GIT_USERNAME=GHS3
+GIT_EMAIL=bot@ghs3.com
 ```
 
 The token requires 2 permissions: `repo`, `delete_repo`
