@@ -14,11 +14,13 @@ import (
 )
 
 type Application struct {
-	Token   string
-	Echo    *echo.Echo
-	Port    string
-	Address string
-	Owner   string
+	Token       string
+	Echo        *echo.Echo
+	Port        string
+	Address     string
+	Owner       string
+	GitUsername string
+	GitEmail    string
 
 	GH  *github.GitHub
 	Git *git.Git
@@ -26,10 +28,12 @@ type Application struct {
 
 func newApplication() *Application {
 	return &Application{
-		Port:    getEnv("GHS3_PORT", "8080"),
-		Address: getEnv("GHS3_ADDRESS", "0.0.0.0"),
-		Token:   getEnv("GITHUB_TOKEN", ""),
-		Owner:   getEnv("GITHUB_OWNER", ""),
+		Port:        getEnv("GHS3_PORT", "8080"),
+		Address:     getEnv("GHS3_ADDRESS", "0.0.0.0"),
+		Token:       getEnv("GITHUB_TOKEN", ""),
+		Owner:       getEnv("GITHUB_OWNER", ""),
+		GitUsername: getEnv("GIT_USERNAME", "GHS3"),
+		GitEmail:    getEnv("GIT_EMAIL", "bot@ghs3.com"),
 	}
 }
 

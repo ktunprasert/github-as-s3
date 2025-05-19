@@ -24,12 +24,16 @@ type Git struct {
 	token    string
 	owner    string
 	skipPush bool
+	username string
+	email    string
 }
 
-func NewGit(token, owner string) *Git {
+func NewGit(token, owner, username, email string) *Git {
 	return &Git{
-		token: token,
-		owner: owner,
+		token:    token,
+		owner:    owner,
+		username: username,
+		email:    email,
 	}
 }
 
@@ -433,8 +437,8 @@ func (g *Git) auth() transport.AuthMethod {
 
 func (g *Git) signature() *object.Signature {
 	return &object.Signature{
-		Name:  "GHS3",
-		Email: "ktunprasert@outlook.com",
+		Name:  g.username,
+		Email: g.email,
 		When:  time.Now(),
 	}
 }

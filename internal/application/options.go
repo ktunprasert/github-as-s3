@@ -42,7 +42,7 @@ func WithDefaultGithub() applicationOpts {
 
 func WithDefaultGit() applicationOpts {
 	return func(a *Application) {
-		a.Git = git.NewGit(a.Token, a.Owner)
+		a.Git = git.NewGit(a.Token, a.Owner, a.GitUsername, a.GitEmail)
 	}
 }
 
