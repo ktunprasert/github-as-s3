@@ -327,7 +327,9 @@ func (g *Git) Get(ctx context.Context, repo *git.Repository, relativeFilepath st
 		logger.Error().Err(err).Msg("failed to open file")
 		return nil, nil, err
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	fileInfo, error := wt.Filesystem.Stat(relativeFilepath)
 	if error != nil {
