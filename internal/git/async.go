@@ -31,7 +31,6 @@ type ChangeRequest struct {
 type RepoWorker struct {
 	sync.RWMutex
 	// ctx         context.Context
-	isRunning   bool
 	changeQueue chan *ChangeRequest
 	path        string
 	repo        *git.Repository
