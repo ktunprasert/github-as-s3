@@ -78,3 +78,22 @@ Hot reloading with [`air`](https://github.com/air-verse/air) is configured
 | [aws s3](https://aws.amazon.com/cli/) | mb, cp, ls, rm                                                    | ✅  |
 | [pocketbase](https://pocketbase.io/)  | creating and restoring back up + deleting files                   | ✅  |
 | [pocketbase](https://pocketbase.io/)  | using as file storage                                             | ❓  |
+
+# FAQ
+
+## How to set up my rclone to read to it?
+
+```conf
+[ghs3]
+type = s3
+provider = Other
+endpoint = http://localhost:8080
+list_version = 2
+```
+
+This was all I needed to start moving files
+
+```bash
+rclone mkdir ghs3:/test-repo/
+rclone copy hello-world.txt ghs3:/test-repo/
+```
