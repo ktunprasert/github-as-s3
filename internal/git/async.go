@@ -409,8 +409,8 @@ func (ga GitAsync) ensureWorker(ctx context.Context, bucket string) (*RepoWorker
 		RemoteName:    consts.Origin,
 		ReferenceName: consts.Master,
 		SingleBranch:  true,
-		Progress:      nil, // Set to os.Stdout for debugging if needed
-		// Consider adding Depth: 1 if full history isn't strictly needed for worker operations
+		Progress:      nil,
+		Depth:         1,
 	})
 
 	if err != nil {
